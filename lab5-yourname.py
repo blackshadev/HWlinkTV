@@ -1,8 +1,17 @@
 ## Netwerken en Systeembeveiliging Lab 5 - Distributed Sensor Network
 ## NAME:
 ## STUDENT ID:
+"""
+DONE
+ - 
+TODO
+ -
+BUGS
+ - 
+"""
 import sys
 import struct
+import select
 from socket import *
 from random import randint
 from gui import MainWindow
@@ -14,6 +23,18 @@ def random_position(n):
 	x = randint(0, n)
 	y = randint(0, n)
 	return (x, y)
+
+class msgParser:
+	__mcast = None
+	__peer = None
+	__widow = None
+	def __init__(self, mcast, peer, window):
+		self.__mcast = mcast
+		self.__peer = peer
+		self.__window = window
+	def parse(self, line):
+		self.__window.writeln(line)
+
 
 
 def main(mcast_addr,
@@ -27,25 +48,30 @@ def main(mcast_addr,
 	grid_size: length of the  of the grid (which is always square).
 	ping_period: time in seconds between multicast pings.
 	"""
+	if sys.platform == 'win32': # windows special case
+		host = 'localhost'
+	else: # should work for everything else
+		host = ''
+
 	# -- Create the multicast listener socket. --
 	mcast = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
 	# Sets the socket address as reusable so you can run multiple instances
 	# of the program on the same machine at the same time.
 	mcast.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+
+	mcast.bind((host, mcast_addr[1]))
 	# Subscribe the socket to multicast messages from the given address.
-	mreq = struct.pack('4sl', inet_aton(mcast_addr[0]), INADDR_ANY)
+	mreq = struct.pack('=4sl', inet_aton(mcast_addr[0]), INADDR_ANY)
 	mcast.setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, mreq)
-	mcast.bind(mcast_addr)
 
 	# -- Create the peer-to-peer socket. --
 	peer = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
 	# Set the socket multicast TTL so it can send multicast messages.
 	peer.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 5)
-	# Bind the socket to a random port.
-	if sys.platform == 'win32': # windows special case
-		peer.bind( ('localhost', INADDR_ANY) )
-	else: # should work for everything else
-		peer.bind( ('', INADDR_ANY) )
+	# Bind the socket to a random port.0
+	peer.bind( (host, INADDR_ANY) )
+
+	conns = [mcast, peer]
 
 	# -- make the gui --
 	window = MainWindow()
@@ -53,10 +79,16 @@ def main(mcast_addr,
 	window.writeln( 'my position is (%s, %s)' % sensor_pos )
 	window.writeln( 'my sensor value is %s' % sensor_val )
 
+
+	parser = msgParser(mcast, peer, window)
+
 	# -- This is the event loop. --
 	while window.update():
-		pass
+		inputReady, outputReady, errorReady = select.select(conns, [], [], 0)
 
+		line = window.getline()
+		if line:
+			parser.parse(line);
 
 # -- program entry point --
 if __name__ == '__main__':
