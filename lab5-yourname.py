@@ -25,16 +25,51 @@ def random_position(n):
 	return (x, y)
 
 class msgParser:
-	__mcast = None
-	__peer = None
+	__node = None
 	__widow = None
-	def __init__(self, mcast, peer, window):
-		self.__mcast = mcast
-		self.__peer = peer
+	def __init__(self, node, window):
+		self.__node = node
 		self.__window = window
 	def parse(self, line):
 		self.__window.writeln(line)
 
+class nodeContainer:
+	"""
+	Node wrapper
+	"""
+	__host = ''
+	address = None
+	peerSocket = None
+	mcastSocket = None
+	mreq = None
+
+	position = None
+	value = None
+	range = 50
+	pingTime = 30
+
+	def __init__(self):
+		# Multicast listener socket
+		self.mcastSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+		self.mcastSocket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+
+		# Peer socket
+		self.peerSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+		self.peerSocket.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 5)
+
+		if sys.platform == 'win32': # windows special case
+			self.__host = 'localhost'
+		else: # should work for everything else
+			self.__host = ''
+	def init(self, mcast_addr):
+		self.mcastSocket.bind( (self.__host, mcast_addr[1]) )
+		self.peerSocket.bind( (self.__host, INADDR_ANY) )
+
+		self.address = self.peerSocket.getsockname()
+		# Subscribe the socket to multicast messages from the given address.
+		self.mreq = struct.pack('=4sl', inet_aton(mcast_addr[0]), INADDR_ANY)
+	def getConnections(self):
+		return [self.mcastSocket, self.peerSocket]
 
 
 def main(mcast_addr,
@@ -53,38 +88,26 @@ def main(mcast_addr,
 	else: # should work for everything else
 		host = ''
 
-	# -- Create the multicast listener socket. --
-	mcast = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
-	# Sets the socket address as reusable so you can run multiple instances
-	# of the program on the same machine at the same time.
-	mcast.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-
-	mcast.bind((host, mcast_addr[1]))
-	# Subscribe the socket to multicast messages from the given address.
-	mreq = struct.pack('=4sl', inet_aton(mcast_addr[0]), INADDR_ANY)
-	mcast.setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, mreq)
-
-	# -- Create the peer-to-peer socket. --
-	peer = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
-	# Set the socket multicast TTL so it can send multicast messages.
-	peer.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 5)
-	# Bind the socket to a random port.0
-	peer.bind( (host, INADDR_ANY) )
-
-	conns = [mcast, peer]
+	node = nodeContainer()
+	node.init(mcast_addr)
+	node.position = sensor_pos
+	node.range = sensor_range
+	node.value = sensor_val
+	node.pingTime = ping_period
 
 	# -- make the gui --
 	window = MainWindow()
-	window.writeln( 'my address is %s:%s' % peer.getsockname() )
-	window.writeln( 'my position is (%s, %s)' % sensor_pos )
-	window.writeln( 'my sensor value is %s' % sensor_val )
+	window.writeln( 'my address is %s:%s' % node.address )
+	window.writeln( 'my position is (%s, %s)' % node.position )
+	window.writeln( 'my sensor value is %s' % node.value )
 
-
-	parser = msgParser(mcast, peer, window)
+	parser = msgParser(node, window)
+	conns = node.getConnections()
 
 	# -- This is the event loop. --
 	while window.update():
-		inputReady, outputReady, errorReady = select.select(conns, [], [], 0)
+		inputReady, outputReady, errorReady = \
+			select.select(conns, [], [], 0)
 
 		line = window.getline()
 		if line:
@@ -95,7 +118,7 @@ if __name__ == '__main__':
 	import sys, argparse
 	p = argparse.ArgumentParser()
 	p.add_argument('--group', help='multicast group', default='224.1.1.1')
-	p.add_argument('--port', help='multicast port', default=50000, type=int)
+	p.add_argument('--port', help='multicast port', default=1620, type=int)
 	p.add_argument('--pos', help='x,y sensor position', default=None)
 	p.add_argument('--grid', help='size of grid', default=100, type=int)
 	p.add_argument('--range', help='sensor range', default=50, type=int)
