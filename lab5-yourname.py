@@ -31,6 +31,8 @@ class msgParser:
 		self.__node = node
 		self.__window = window
 	def parse(self, line):
+		if line == "ping":
+			self.__node.ping()
 		self.__window.writeln(line)
 
 class nodeContainer:
@@ -38,10 +40,10 @@ class nodeContainer:
 	Node wrapper
 	"""
 	__host = ''
+	__mcastAddr = None
 	address = None
 	peerSocket = None
 	mcastSocket = None
-	mreq = None
 
 	position = None
 	value = None
@@ -62,14 +64,20 @@ class nodeContainer:
 		else: # should work for everything else
 			self.__host = ''
 	def init(self, mcast_addr):
+		self.__mcastAddr = mcast_addr
 		self.mcastSocket.bind( (self.__host, mcast_addr[1]) )
 		self.peerSocket.bind( (self.__host, INADDR_ANY) )
 
 		self.address = self.peerSocket.getsockname()
+
 		# Subscribe the socket to multicast messages from the given address.
-		self.mreq = struct.pack('=4sl', inet_aton(mcast_addr[0]), INADDR_ANY)
+		mreq = struct.pack('=4sl', inet_aton(mcast_addr[0]), INADDR_ANY)
+		self.mcastSocket.setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, mreq)
 	def getConnections(self):
 		return [self.mcastSocket, self.peerSocket]
+	def ping(self):
+		print "pinging with %s" % str(self.__mcastAddr)
+		self.mcastSocket.sendto("Dit is een test string", self.__mcastAddr)
 
 
 def main(mcast_addr,
@@ -83,11 +91,6 @@ def main(mcast_addr,
 	grid_size: length of the  of the grid (which is always square).
 	ping_period: time in seconds between multicast pings.
 	"""
-	if sys.platform == 'win32': # windows special case
-		host = 'localhost'
-	else: # should work for everything else
-		host = ''
-
 	node = nodeContainer()
 	node.init(mcast_addr)
 	node.position = sensor_pos
@@ -108,6 +111,11 @@ def main(mcast_addr,
 	while window.update():
 		inputReady, outputReady, errorReady = \
 			select.select(conns, [], [], 0)
+
+		for s in inputReady:
+			data = s.recv(1024)
+			print data
+			window.writeln("Network: %s" % data)
 
 		line = window.getline()
 		if line:
