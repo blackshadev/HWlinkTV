@@ -5,9 +5,12 @@
 DONE
  - 
 TODO
- -
+ - Ping interval
+ - ping -> pong -> add neighbour
+ - distance calculation function in nodeContainer
 BUGS
- - 
+ - Node still sends to it self
+ - Node doesn't recieve or parse the peer connection
 """
 import sys
 import struct
@@ -40,14 +43,36 @@ class msgParser:
 		else:
 			self.parsePeer(conn)
 	def parseMcast(self, conn):
-		raw = conn.recv(1024)
-		message = message_decode(raw)
-		print str(message)
+		raw, addr = conn.recvfrom(1024)
+		mType, seq, initor, neighbour, op, data = message_decode(raw)
+		if mType == MSG_PING:
+			self.__node.pong(initor, addr)
+	def parsePeer(self, conn):
+		raw, addr = conn.recvfrom(1024)
+		mType, seq, initor, neighbour, op, data = message_decode(raw)
+		if mType == MSG_PONG:
+			self.confirm(neighbour, addr)
+
 
 class neighbours:
 	__node = None
+	__dict = {}
 	def __init__(self, node):
 		self.__node = node
+	def confirm(self, pos, addr):
+		import operator
+		diff = tuple(map(operator.div, pos, self.__node.position))
+		print diff
+		distance = diff[0] ** 2 + diff[1] ** 2
+		print distance
+		inrange = distance < self.__node.radius ** 2 and distance != 0
+		if inrange:
+			self.__dict[pos] = addr
+			print "tvged"
+			print self.__dict
+		else:
+			print "NOPS"
+		
 
 class nodeContainer:
 	"""
@@ -91,8 +116,14 @@ class nodeContainer:
 	def ping(self):
 		cmd = message_encode(MSG_PING, 0, self.position, self.position)
 		self.mcastSocket.sendto(cmd, self.__mcastAddr)
-	def pong(self, ping):
-		pass
+	def pong(self, initor, addr):
+		if addr == self.address:
+			print "Own node"
+			return false
+		print "sending pong %s" % str(addr)
+		print self.address
+		cmd = message_encode(MSG_PONG, 0, initor, self.position)
+		self.peerSocket.sendto(cmd, addr)
 
 
 def main(mcast_addr,
