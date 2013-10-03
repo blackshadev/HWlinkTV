@@ -40,8 +40,6 @@ def message_encode(type, sequence, initiator, neighbor, operation=0, payload=0):
 	return message_format.pack(type, sequence,
 		ix, iy, nx, ny, operation, payload)
 
-
-
 def message_decode(buffer):
 	"""
 	Decodes a binary message string to Python objects.

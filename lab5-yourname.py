@@ -3,14 +3,15 @@
 ## STUDENT ID:
 """
 DONE
- - 
+ - The mcastSocket is only a listener
+ - All messages are send with the peerSocket
+ - Ping Pong works
 TODO
  - Ping interval
- - ping -> pong -> add neighbour
  - distance calculation function in nodeContainer
+ - Check working
 BUGS
- - Node still sends to it self
- - Node doesn't recieve or parse the peer connection
+ - Node still sends to it self (no?)
 """
 import sys
 import struct
@@ -45,13 +46,15 @@ class msgParser:
 	def parseMcast(self, conn):
 		raw, addr = conn.recvfrom(1024)
 		mType, seq, initor, neighbour, op, data = message_decode(raw)
+		print "Mcast Got %d from %s" % (mType, str(addr))
 		if mType == MSG_PING:
 			self.__node.pong(initor, addr)
 	def parsePeer(self, conn):
 		raw, addr = conn.recvfrom(1024)
 		mType, seq, initor, neighbour, op, data = message_decode(raw)
+		print "peer Got %d from %s" % (mType, str(addr))
 		if mType == MSG_PONG:
-			self.confirm(neighbour, addr)
+			self.__node.addNeighbour(neighbour, addr)
 
 
 class neighbours:
@@ -65,7 +68,7 @@ class neighbours:
 		print diff
 		distance = diff[0] ** 2 + diff[1] ** 2
 		print distance
-		inrange = distance < self.__node.radius ** 2 and distance != 0
+		inrange = distance < self.__node.range ** 2 and distance != 0
 		if inrange:
 			self.__dict[pos] = addr
 			print "tvged"
@@ -113,13 +116,15 @@ class nodeContainer:
 		self.mcastSocket.setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, mreq)
 	def getConnections(self):
 		return [self.mcastSocket, self.peerSocket]
+	def addNeighbour(self, pos, addr):
+		self.__neighbours.confirm(pos, addr)
 	def ping(self):
 		cmd = message_encode(MSG_PING, 0, self.position, self.position)
-		self.mcastSocket.sendto(cmd, self.__mcastAddr)
+		self.peerSocket.sendto(cmd, self.__mcastAddr)
 	def pong(self, initor, addr):
 		if addr == self.address:
 			print "Own node"
-			return false
+			return False
 		print "sending pong %s" % str(addr)
 		print self.address
 		cmd = message_encode(MSG_PONG, 0, initor, self.position)
