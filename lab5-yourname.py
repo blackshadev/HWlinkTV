@@ -30,10 +30,24 @@ class msgParser:
 	def __init__(self, node, window):
 		self.__node = node
 		self.__window = window
-	def parse(self, line):
+	def parseLine(self, line):
 		if line == "ping":
 			self.__node.ping()
 		self.__window.writeln(line)
+	def parseConnection(self, conn):
+		if conn == self.__node.mcastSocket:
+			self.parseMcast(conn)
+		else:
+			self.parsePeer(conn)
+	def parseMcast(self, conn):
+		raw = conn.recv(1024)
+		message = message_decode(raw)
+		print str(message)
+
+class neighbours:
+	__node = None
+	def __init__(self, node):
+		self.__node = node
 
 class nodeContainer:
 	"""
@@ -41,6 +55,7 @@ class nodeContainer:
 	"""
 	__host = ''
 	__mcastAddr = None
+	__neighbours = None
 	address = None
 	peerSocket = None
 	mcastSocket = None
@@ -58,11 +73,9 @@ class nodeContainer:
 		# Peer socket
 		self.peerSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
 		self.peerSocket.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 5)
-
-		if sys.platform == 'win32': # windows special case
-			self.__host = 'localhost'
-		else: # should work for everything else
-			self.__host = ''
+		
+		self.__host = ''
+		self.__neighbours = neighbours(self)
 	def init(self, mcast_addr):
 		self.__mcastAddr = mcast_addr
 		self.mcastSocket.bind( (self.__host, mcast_addr[1]) )
@@ -76,8 +89,10 @@ class nodeContainer:
 	def getConnections(self):
 		return [self.mcastSocket, self.peerSocket]
 	def ping(self):
-		print "pinging with %s" % str(self.__mcastAddr)
-		self.mcastSocket.sendto("Dit is een test string", self.__mcastAddr)
+		cmd = message_encode(MSG_PING, 0, self.position, self.position)
+		self.mcastSocket.sendto(cmd, self.__mcastAddr)
+	def pong(self, ping):
+		pass
 
 
 def main(mcast_addr,
@@ -113,13 +128,11 @@ def main(mcast_addr,
 			select.select(conns, [], [], 0)
 
 		for s in inputReady:
-			data = s.recv(1024)
-			print data
-			window.writeln("Network: %s" % data)
+			parser.parseConnection(s)
 
 		line = window.getline()
 		if line:
-			parser.parse(line);
+			parser.parseLine(line);
 
 # -- program entry point --
 if __name__ == '__main__':
