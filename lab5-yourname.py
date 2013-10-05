@@ -9,7 +9,7 @@ DONE
  - List works
  - Ping interval
 TODO
- -
+ - Check if position is already taken
 BUGS
  - 
 """
@@ -38,6 +38,8 @@ class msgParser:
 			self.__node.ping()
 		elif line == "list":
 			self.__node.listNeighbours()
+		elif line == "move":
+			self.__node.moveNode()
 		else:
 			self.__node.log("No command for %s" % line)
 	def parseConnection(self, conn):
@@ -50,7 +52,7 @@ class msgParser:
 		elif mType == MSG_PONG:
 			self.__node.addNeighbour(neighbour, addr)
 		else:
-			self.__node.log("Received %d from %s:%s on (%d,%d), unkown mType" \
+			self.__node.log("Received %d from %s:%s on (%d,%d), unknown mType" \
 				% (mType, addr[0], addr[1], neighbour[0], neighbour[1]))
 		
 
@@ -64,10 +66,15 @@ class neighbours:
 	def clear(self):
 		self.__dict.clear()
 	def __str__(self):
-		retr = "(x,y)\t\taddress:poort\n"
+		import operator
+		retr = "(x,y)\t\taddress:port\n"
 		for key in self.__dict:
+			diff = tuple(map(operator.div, key, self.__node.position))
+			self.__node.log("pos: (%d,%d)\n" % (self.__node.position[0], self.__node.position[1]))
+			#self.__node.log("pos: (%d,%d)" % diff[0], diff[1])
 			node = self.__dict[key]
-			retr += "(%d,%d):\t\t%s:%s" % (key[0], key[1], node[0], node[1])
+			distance = self.__node.distanceTo(diff)
+			retr += "(%d,%d):\t\t%s:%s dist: %d\n" % (key[0], key[1], node[0], node[1], distance)
 		return retr
 		
 
@@ -141,8 +148,16 @@ class nodeContainer:
 	def inRange(self, pos):
 		import operator
 		diff = tuple(map(operator.div, pos, self.position))
-		distance = diff[0] ** 2 + diff[1] ** 2
-		return distance < self.range ** 2
+		distance = self.distanceTo(diff)
+		self.log("pos (%d,%d)" % (pos[0], pos[1]))
+		self.log("self (%d,%d)" % (self.position[0], self.position[1]))
+		self.log("diff (%d,%d)" % (diff[0], diff[1]))
+		self.log("distance (%d)" % distance)
+		return distance < self.range
+	def distanceTo(self, diff):
+		import math
+		distance = math.sqrt(diff[0] ** 2 + diff[1] ** 2)
+		return distance
 	""" Protocol operations """
 	def autoPing(self):
 		if self.pingTime < 1:
@@ -162,6 +177,10 @@ class nodeContainer:
 		self.log("Recieved ping from %s:%s, sending PONG" % (addr), 1)
 		cmd = message_encode(MSG_PONG, 0, initor, self.position)
 		self.peerSocket.sendto(cmd, addr)
+	def moveNode(self):
+		self.position = random_position(args.grid)
+		self.log("Changed position to (%d,%d)" % self.position)
+
 
 
 def main(mcast_addr,
