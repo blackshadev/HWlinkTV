@@ -9,7 +9,7 @@ DONE
  - List works
  - Ping interval
 TODO
- -
+ - Check if position is already taken
 BUGS
  - 
 """
@@ -43,6 +43,8 @@ class msgParser:
 			self.__node.listNeighbours()
 		elif line == "echo":
 			self.__node.echoInit(0, 0)
+		elif line == "move":
+			self.__node.moveNode()
 		else:
 			self.__node.log("No command for %s" % line)
 	def parseConnection(self, conn):
@@ -59,7 +61,7 @@ class msgParser:
 		elif mType == MSG_ECHO_REPLY:
 			self.__node.echoReply(seq, initor, neighbour, op, data)
 		else:
-			self.__node.log("Received %d from %s:%s on (%d,%d), unkown mType" \
+			self.__node.log("Received %d from %s:%s on (%d,%d), unknown mType" \
 				% (mType, addr[0], addr[1], neighbour[0], neighbour[1]))
 		
 
@@ -83,10 +85,12 @@ class neighbours:
 			count += 1
 		return count
 	def __str__(self):
-		retr = "(x,y)\t\taddress:poort\n"
+		import operator
+		retr = "\n(x,y)\t\tDistance\t\taddress:port\n"
 		for key in self.__dict:
 			node = self.__dict[key]
-			retr += "(%d,%d):\t\t%s:%s" % (key[0], key[1], node[0], node[1])
+			distance = self.__node.distanceTo(key)
+			retr += "(%d,%d):\t\t%d\t\t%s:%s\n" % (key[0], key[1], distance, node[0], node[1], )
 		return retr
 		
 
@@ -162,10 +166,16 @@ class nodeContainer:
 		self.log(str(self.__neighbours))
 		self.log("\\-- Current known neighbours --/")
 	def inRange(self, pos):
+		return self.distanceTo(pos) < self.range
+	def distanceTo(self, pos):
+		import math
 		import operator
 		diff = tuple(map(operator.div, pos, self.position))
-		distance = diff[0] ** 2 + diff[1] ** 2
-		return distance < self.range ** 2
+		distance = math.sqrt(diff[0] ** 2 + diff[1] ** 2)
+		return distance
+	def moveNode(self):
+		self.position = random_position(args.grid)
+		self.log("Changed position to (%d,%d)" % self.position)
 	""" Protocol operations """
 	def autoPing(self):
 		if self.pingTime < 1:
