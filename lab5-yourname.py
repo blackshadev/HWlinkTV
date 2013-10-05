@@ -8,10 +8,12 @@ DONE
  - Ping Pong Neighbour works
  - List works
  - Ping interval
+ - Echo's can be sent en recieved
 TODO
  - Check if position is already taken
 BUGS
- - 
+ - Something is wrong at line 249
+ - DistanceTo still malfunctions
 """
 import sys
 import struct
@@ -59,7 +61,7 @@ class msgParser:
 		elif mType == MSG_ECHO:
 			self.__node.echoRecieve(seq, initor, neighbour, op, data)
 		elif mType == MSG_ECHO_REPLY:
-			self.__node.echoReply(seq, initor, neighbour, op, data)
+			self.__node.echoReplyRecieve(seq, initor, neighbour, op, data)
 		else:
 			self.__node.log("Received %d from %s:%s on (%d,%d), unknown mType" \
 				% (mType, addr[0], addr[1], neighbour[0], neighbour[1]))
@@ -210,10 +212,14 @@ class nodeContainer:
 			% (seq, initor[0], initor[1]))
 		cmd = message_encode(MSG_ECHO, seq, initor, self.position, op, data)
 
+		# Count neighbours exept the father node
 		self.__echoPending[key] = len(self.__neighbours)
+		if excl[0] > -1 and excl[1] > -1:
+			self.__echoPending[key] -= 1
 
 		if self.__echoPending[key] < 1:
-			self.echoReply(seq, initor, neighbour, op, data)
+			self.echoReplySend(self.__echoFather[key], seq, \
+				initor, self.position, op, data)
 
 		def callback(pos, addr):
 			if pos[0] == excl[0] and pos[1] == excl[1]:
@@ -222,16 +228,16 @@ class nodeContainer:
 			self.peerSocket.sendto(cmd, addr)
 
 		self.__neighbours.forAll(callback)
-	def echoReply(self, seq, initor, neighbour, op, data):
+	def echoReplyRecieve(self, seq, initor, neighbour, op, data):
 		key = echoKey(seq, initor)
 
 		self.__echoPending[key] -= 1
 		self.log("Recieved Echo_Reply from (%d, %d), left: %d" % \
 			(neighbour[0], neighbour[1], self.__echoPending[key]) )
-		if self.__echoPending[key] < 0:
+		if self.__echoPending[key] <= 0:
 			fatherAddr = self.__echoFather[key]
-			self.echoResult(fatherAddr, seq, initor, neighbour, op, data)
-	def echoResult(self, addr, seq, initor, neighbour, op, data):
+			self.echoReplySend(fatherAddr, seq, initor, neighbour, op, data)
+	def echoReplySend(self, addr, seq, initor, neighbour, op, data):
 		key = echoKey(seq, initor)
 
 		if initor[0] == self.position[0] and initor[1] == self.position[1]:
@@ -240,8 +246,8 @@ class nodeContainer:
 
 		self.log("Sending result to addr %s:%s)" % addr)
 
-		cmd = message_encode(MSG_ECHO_REPLY, seq, initor, self.position, 
-			op, data)
+		cmd = message_encode(MSG_ECHO_REPLY, seq, initor, self.position, op, data)
+		# Something is wrong here
 		self.peerSocket.sendto(cmd, addr)
 	def echoFinal(self, seq, initor, neighbour, op, data):
 		self.log("Recieved final echo back, op: %d, data: %d" % (op, data))
@@ -250,7 +256,7 @@ class nodeContainer:
 
 		# Already recieved Echo
 		if key in self.__echoFather or (initor[0] == self.position[0] and initor[1] == self.position[1]):
-			self.echoResult(self.__neighbours[neighbour], seq, initor, \
+			self.echoReplySend(self.__neighbours[neighbour], seq, initor, \
 				neighbour, op, data)
 			return
 
