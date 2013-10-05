@@ -5,13 +5,13 @@
 DONE
  - The mcastSocket is only a listener
  - All messages are send with the peerSocket
- - Ping Pong works
-TODO
+ - Ping Pong Neighbour works
+ - List works
  - Ping interval
- - distance calculation function in nodeContainer
- - Check working
+TODO
+ -
 BUGS
- - Node still sends to it self (no?)
+ - 
 """
 import sys
 import struct
@@ -20,6 +20,7 @@ from socket import *
 from random import randint
 from gui import MainWindow
 from sensor import *
+import time
 
 
 # Get random position in NxN grid.
@@ -30,60 +31,55 @@ def random_position(n):
 
 class msgParser:
 	__node = None
-	__widow = None
-	def __init__(self, node, window):
+	def __init__(self, node):
 		self.__node = node
-		self.__window = window
 	def parseLine(self, line):
 		if line == "ping":
 			self.__node.ping()
-		self.__window.writeln(line)
-	def parseConnection(self, conn):
-		if conn == self.__node.mcastSocket:
-			self.parseMcast(conn)
+		elif line == "list":
+			self.__node.listNeighbours()
 		else:
-			self.parsePeer(conn)
-	def parseMcast(self, conn):
+			self.__node.log("No command for %s" % line)
+	def parseConnection(self, conn):
 		raw, addr = conn.recvfrom(1024)
-		mType, seq, initor, neighbour, op, data = message_decode(raw)
-		print "Mcast Got %d from %s" % (mType, str(addr))
+		self.parseSensorMessage(raw, addr)
+	def parseSensorMessage(self, msg, addr):
+		mType, seq, initor, neighbour, op, data = message_decode(msg)
 		if mType == MSG_PING:
 			self.__node.pong(initor, addr)
-	def parsePeer(self, conn):
-		raw, addr = conn.recvfrom(1024)
-		mType, seq, initor, neighbour, op, data = message_decode(raw)
-		print "peer Got %d from %s" % (mType, str(addr))
-		if mType == MSG_PONG:
+		elif mType == MSG_PONG:
 			self.__node.addNeighbour(neighbour, addr)
-
+		else:
+			self.__node.log("Received %d from %s:%s on (%d,%d), unkown mType" \
+				% (mType, addr[0], addr[1], neighbour[0], neighbour[1]))
+		
 
 class neighbours:
 	__node = None
 	__dict = {}
 	def __init__(self, node):
 		self.__node = node
-	def confirm(self, pos, addr):
-		import operator
-		diff = tuple(map(operator.div, pos, self.__node.position))
-		print diff
-		distance = diff[0] ** 2 + diff[1] ** 2
-		print distance
-		inrange = distance < self.__node.range ** 2 and distance != 0
-		if inrange:
-			self.__dict[pos] = addr
-			print "tvged"
-			print self.__dict
-		else:
-			print "NOPS"
+	def add(self, pos, addr):
+		self.__dict[pos] = addr
+	def clear(self):
+		self.__dict.clear()
+	def __str__(self):
+		retr = "(x,y)\t\taddress:poort\n"
+		for key in self.__dict:
+			node = self.__dict[key]
+			retr += "(%d,%d):\t\t%s:%s" % (key[0], key[1], node[0], node[1])
+		return retr
 		
 
 class nodeContainer:
 	"""
 	Node wrapper
 	"""
+	__neighbours = None
+	__window = None
+	
 	__host = ''
 	__mcastAddr = None
-	__neighbours = None
 	address = None
 	peerSocket = None
 	mcastSocket = None
@@ -91,7 +87,9 @@ class nodeContainer:
 	position = None
 	value = None
 	range = 50
-	pingTime = 30
+	pingTime = 30 
+	__lastPing = 0
+	__debug = 1
 
 	def __init__(self):
 		# Multicast listener socket
@@ -104,6 +102,7 @@ class nodeContainer:
 		
 		self.__host = ''
 		self.__neighbours = neighbours(self)
+	""" Initiate sockets """
 	def init(self, mcast_addr):
 		self.__mcastAddr = mcast_addr
 		self.mcastSocket.bind( (self.__host, mcast_addr[1]) )
@@ -116,17 +115,51 @@ class nodeContainer:
 		self.mcastSocket.setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, mreq)
 	def getConnections(self):
 		return [self.mcastSocket, self.peerSocket]
+	""" Window operations """
+	def createWindow(self):
+		window = MainWindow()
+		window.writeln( 'my address is %s:%s' % self.address )
+		window.writeln( 'my position is (%s, %s)' % self.position )
+		window.writeln( 'my sensor value is %s' % self.value )
+		self.__window = window
+		return window
+	def log(self, msg, level=0):
+		if self.__debug > level:
+			timeStr = time.strftime("%H:%M:%S")
+			self.__window.writeln("[%s]: %s" % (timeStr, msg))
+	""" Neighbour operations """
 	def addNeighbour(self, pos, addr):
-		self.__neighbours.confirm(pos, addr)
+		self.log("Recieved PONG from %s:%s at (%d,%d) " \
+			% (addr[0], addr[1], pos[0], pos[1]), 1)
+		if self.inRange(pos):
+			self.__neighbours.add(pos, addr)
+			self.log("Found neighbour (%d,%d)" % pos)
+	def listNeighbours(self):
+		self.log("/-- Current known neighbours --\\")
+		self.log(str(self.__neighbours))
+		self.log("\\-- Current known neighbours --/")
+	def inRange(self, pos):
+		import operator
+		diff = tuple(map(operator.div, pos, self.position))
+		distance = diff[0] ** 2 + diff[1] ** 2
+		return distance < self.range ** 2
+	""" Protocol operations """
+	def autoPing(self):
+		if self.pingTime < 1:
+			return
+		if self.__lastPing + self.pingTime < time.time():
+			self.ping()
+			self.__lastPing = time.time()
 	def ping(self):
+		self.log("Cleared neighbour list", 1)
+		self.__neighbours.clear()
+		self.log("Pinging for neighbours")
 		cmd = message_encode(MSG_PING, 0, self.position, self.position)
 		self.peerSocket.sendto(cmd, self.__mcastAddr)
 	def pong(self, initor, addr):
-		if addr == self.address:
-			print "Own node"
-			return False
-		print "sending pong %s" % str(addr)
-		print self.address
+		if initor == self.position:
+			return
+		self.log("Recieved ping from %s:%s, sending PONG" % (addr), 1)
 		cmd = message_encode(MSG_PONG, 0, initor, self.position)
 		self.peerSocket.sendto(cmd, addr)
 
@@ -143,34 +176,37 @@ def main(mcast_addr,
 	ping_period: time in seconds between multicast pings.
 	"""
 	node = nodeContainer()
+	# -- make sockets
 	node.init(mcast_addr)
+	# -- set node values
 	node.position = sensor_pos
 	node.range = sensor_range
 	node.value = sensor_val
 	node.pingTime = ping_period
-
-	# -- make the gui --
-	window = MainWindow()
-	window.writeln( 'my address is %s:%s' % node.address )
-	window.writeln( 'my position is (%s, %s)' % node.position )
-	window.writeln( 'my sensor value is %s' % node.value )
-
-	parser = msgParser(node, window)
+	# -- create gui
+	window = node.createWindow()
+	# -- Command/message parser
+	parser = msgParser(node)
+	# -- Both peer and Mcast connections
 	conns = node.getConnections()
 
-	# -- This is the event loop. --
+	# -- This is the event loop
 	while window.update():
 		inputReady, outputReady, errorReady = \
 			select.select(conns, [], [], 0)
+		# Is it ping time already
+		node.autoPing()
 
+		# Network message
 		for s in inputReady:
 			parser.parseConnection(s)
 
+		# Gui message
 		line = window.getline()
 		if line:
 			parser.parseLine(line);
 
-# -- program entry point --
+# -- program entry point
 if __name__ == '__main__':
 	import sys, argparse
 	p = argparse.ArgumentParser()
@@ -181,7 +217,7 @@ if __name__ == '__main__':
 	p.add_argument('--range', help='sensor range', default=50, type=int)
 	p.add_argument('--value', help='sensor value', default=-1, type=int)
 	p.add_argument('--period', help='period between autopings (0=off)',
-		default=5, type=int)
+		default=30, type=int)
 	args = p.parse_args(sys.argv[1:])
 	if args.pos:
 		pos = tuple( int(n) for n in args.pos.split(',')[:2] )
