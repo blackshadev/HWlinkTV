@@ -29,6 +29,9 @@ def random_position(n):
 	y = randint(0, n)
 	return (x, y)
 
+def echoKey(seq, initor):
+	return "%d,%d:%d" % (initor[0], initor[1], seq)
+
 class msgParser:
 	__node = None
 	def __init__(self, node):
@@ -38,6 +41,8 @@ class msgParser:
 			self.__node.ping()
 		elif line == "list":
 			self.__node.listNeighbours()
+		elif line == "echo":
+			self.__node.echoInit(0, 0)
 		else:
 			self.__node.log("No command for %s" % line)
 	def parseConnection(self, conn):
@@ -49,6 +54,10 @@ class msgParser:
 			self.__node.pong(initor, addr)
 		elif mType == MSG_PONG:
 			self.__node.addNeighbour(neighbour, addr)
+		elif mType == MSG_ECHO:
+			self.__node.echoRecieve(seq, initor, neighbour, op, data)
+		elif mType == MSG_ECHO_REPLY:
+			self.__node.echoReply(seq, initor, neighbour, op, data)
 		else:
 			self.__node.log("Received %d from %s:%s on (%d,%d), unkown mType" \
 				% (mType, addr[0], addr[1], neighbour[0], neighbour[1]))
@@ -59,10 +68,20 @@ class neighbours:
 	__dict = {}
 	def __init__(self, node):
 		self.__node = node
-	def add(self, pos, addr):
+	def __setitem__(self, pos, addr):
 		self.__dict[pos] = addr
 	def clear(self):
 		self.__dict.clear()
+	def __len__(self):
+		return len(self.__dict)
+	def __getitem__(self, key):
+		return self.__dict[key]
+	def forAll(self, fn):
+		count = 0
+		for key in self.__dict:
+			fn(key, self.__dict[key])
+			count += 1
+		return count
 	def __str__(self):
 		retr = "(x,y)\t\taddress:poort\n"
 		for key in self.__dict:
@@ -90,6 +109,10 @@ class nodeContainer:
 	pingTime = 30 
 	__lastPing = 0
 	__debug = 1
+
+	__echoSeq = 0
+	__echoPending = {}
+	__echoFather = {}
 
 	def __init__(self):
 		# Multicast listener socket
@@ -132,7 +155,7 @@ class nodeContainer:
 		self.log("Recieved PONG from %s:%s at (%d,%d) " \
 			% (addr[0], addr[1], pos[0], pos[1]), 1)
 		if self.inRange(pos):
-			self.__neighbours.add(pos, addr)
+			self.__neighbours[pos] = addr
 			self.log("Found neighbour (%d,%d)" % pos)
 	def listNeighbours(self):
 		self.log("/-- Current known neighbours --\\")
@@ -162,6 +185,75 @@ class nodeContainer:
 		self.log("Recieved ping from %s:%s, sending PONG" % (addr), 1)
 		cmd = message_encode(MSG_PONG, 0, initor, self.position)
 		self.peerSocket.sendto(cmd, addr)
+	""" Echo operations """
+	def echoInit(self, op=0, data=0):
+		self.__echoSeq += 1
+		
+		self.log("Sending echo wave with sequence number %d" % self.__echoSeq)
+
+		self.echoSend(self.__echoSeq, self.position, op, data)
+	def echoSend(self, seq, initor, op, data, excl=(-1,-1)):
+		key = echoKey(seq, initor)
+
+		self.log(
+			"Sending echo wave with sequence number %d , initiated by (%d,%d)" \
+			% (seq, initor[0], initor[1]))
+		cmd = message_encode(MSG_ECHO, seq, initor, self.position, op, data)
+
+		self.__echoPending[key] = len(self.__neighbours)
+
+		if self.__echoPending[key] < 1:
+			self.echoReply(seq, initor, neighbour, op, data)
+
+		def callback(pos, addr):
+			if pos[0] == excl[0] and pos[1] == excl[1]:
+				return
+			self.log("Sending echo wave to %s:%s" % (addr), 1)
+			self.peerSocket.sendto(cmd, addr)
+
+		self.__neighbours.forAll(callback)
+	def echoReply(self, seq, initor, neighbour, op, data):
+		key = echoKey(seq, initor)
+
+		self.__echoPending[key] -= 1
+		self.log("Recieved Echo_Reply from (%d, %d), left: %d" % \
+			(neighbour[0], neighbour[1], self.__echoPending[key]) )
+		if self.__echoPending[key] < 0:
+			fatherAddr = self.__echoFather[key]
+			self.echoResult(fatherAddr, seq, initor, neighbour, op, data)
+	def echoResult(self, addr, seq, initor, neighbour, op, data):
+		key = echoKey(seq, initor)
+
+		if initor[0] == self.position[0] and initor[1] == self.position[1]:
+			self.echoFinal(seq, initor, neighbour, op, data)
+			return
+
+		self.log("Sending result to addr %s:%s)" % addr)
+
+		cmd = message_encode(MSG_ECHO_REPLY, seq, initor, self.position, 
+			op, data)
+		self.peerSocket.sendto(cmd, addr)
+	def echoFinal(self, seq, initor, neighbour, op, data):
+		self.log("Recieved final echo back, op: %d, data: %d" % (op, data))
+	def echoRecieve(self, seq, initor, neighbour, op, data):
+		key = echoKey(seq, initor)
+
+		# Already recieved Echo
+		if key in self.__echoFather or (initor[0] == self.position[0] and initor[1] == self.position[1]):
+			self.echoResult(self.__neighbours[neighbour], seq, initor, \
+				neighbour, op, data)
+			return
+
+		# Add to recieved echo's
+		self.__echoFather[key] = neighbour
+
+		self.log(
+			("Recieved echo wave with sequence number %d initiated by (%d,%d)"+\
+			"from (%d,%d)") %\
+			(seq, initor[0], initor[1], neighbour[0], neighbour[1]))
+		# Sent it foward
+		self.echoSend(seq, initor, op, data, excl=neighbour)
+
 
 
 def main(mcast_addr,
@@ -217,7 +309,7 @@ if __name__ == '__main__':
 	p.add_argument('--range', help='sensor range', default=50, type=int)
 	p.add_argument('--value', help='sensor value', default=-1, type=int)
 	p.add_argument('--period', help='period between autopings (0=off)',
-		default=30, type=int)
+		default=0, type=int)
 	args = p.parse_args(sys.argv[1:])
 	if args.pos:
 		pos = tuple( int(n) for n in args.pos.split(',')[:2] )
