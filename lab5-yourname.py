@@ -8,12 +8,13 @@ DONE
  - Ping Pong Neighbour works
  - List works
  - Ping interval
- - Echo's can be sent en recieved
+ - Echo's
+ - DistanceTo calculation
 TODO
  - Check if position is already taken
+ - Check for a better way to compare tuples and calculating with them
 BUGS
- - Something is wrong at line 249
- - DistanceTo still malfunctions
+ - Needs more testing
 """
 import sys
 import struct
@@ -87,7 +88,6 @@ class neighbours:
 			count += 1
 		return count
 	def __str__(self):
-		import operator
 		retr = "\n(x,y)\t\tDistance\t\taddress:port\n"
 		for key in self.__dict:
 			node = self.__dict[key]
@@ -171,10 +171,9 @@ class nodeContainer:
 		return self.distanceTo(pos) < self.range
 	def distanceTo(self, pos):
 		import math
-		import operator
-		diff = tuple(map(operator.div, pos, self.position))
-		distance = math.sqrt(diff[0] ** 2 + diff[1] ** 2)
-		return distance
+		diff = (self.position[0] - pos[0], self.position[1] - pos[1])
+		
+		return math.sqrt(diff[0] ** 2 + diff[1] ** 2)
 	def moveNode(self):
 		self.position = random_position(args.grid)
 		self.log("Changed position to (%d,%d)" % self.position)
@@ -235,19 +234,26 @@ class nodeContainer:
 		self.log("Recieved Echo_Reply from (%d, %d), left: %d" % \
 			(neighbour[0], neighbour[1], self.__echoPending[key]) )
 		if self.__echoPending[key] <= 0:
+			# Is own echo or sent it back to father
+			if initor[0] == self.position[0] and initor[1] == self.position[1]:
+				self.echoFinal(seq, initor, neighbour, op, data)
+				return
+			# Sent it to the father node
 			fatherAddr = self.__echoFather[key]
 			self.echoReplySend(fatherAddr, seq, initor, neighbour, op, data)
-	def echoReplySend(self, addr, seq, initor, neighbour, op, data):
-		key = echoKey(seq, initor)
+	def echoReplySend(self, father, seq, initor, neighbour, op, data):
+		addr = self.__neighbours[father]
 
 		if initor[0] == self.position[0] and initor[1] == self.position[1]:
 			self.echoFinal(seq, initor, neighbour, op, data)
 			return
 
-		self.log("Sending result to addr %s:%s)" % addr)
+		self.log("Sending EchoReply to addr %s:%s)" % addr)
 
 		cmd = message_encode(MSG_ECHO_REPLY, seq, initor, self.position, op, data)
 		# Something is wrong here
+		
+		print addr
 		self.peerSocket.sendto(cmd, addr)
 	def echoFinal(self, seq, initor, neighbour, op, data):
 		self.log("Recieved final echo back, op: %d, data: %d" % (op, data))
