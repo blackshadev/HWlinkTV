@@ -5,7 +5,7 @@
 DONE
  - The mcastSocket is only a listener
  - All messages are send with the peerSocket
- - Ping Pong Neighbour works
+ - Ping Pong Neighbor works
  - List works
  - Ping interval
  - Echo's
@@ -26,6 +26,7 @@ from sensor import *
 import time
 
 
+
 # Get random position in NxN grid.
 def random_position(n):
 	x = randint(0, n)
@@ -35,11 +36,11 @@ def random_position(n):
 def echoKey(seq, initor):
 	return "%d,%d:%d" % (initor[0], initor[1], seq)
 
+
 class msgParser:
 	"""
 	Wrapper class to handle window and network input/commands
 	"""
-	__node = None
 	def __init__(self, node):
 		self.__node = node
 	"""
@@ -49,9 +50,11 @@ class msgParser:
 		if line == "ping":
 			self.__node.ping()
 		elif line == "list":
-			self.__node.listNeighbours()
+			self.__node.listNeighbors()
 		elif line == "echo":
-			self.__node.echoInit(0, 0)
+			self.__node.echoInit(OP_NOOP)
+		elif line == "size":
+			self.__node.echoInit(OP_SIZE)
 		elif line == "move":
 			self.__node.moveNode()
 		else:
@@ -64,37 +67,38 @@ class msgParser:
 	"""
 	def parseSensorMessage(self, conn):
 		raw, addr = conn.recvfrom(1024)
-		mType, seq, initor, neighbour, op, data = message_decode(raw)
+		mType, seq, initor, neighbor, op, data = message_decode(raw)
 		if mType == MSG_PING:
 			self.__node.pong(initor, addr)
 		elif mType == MSG_PONG:
-			self.__node.addNeighbour(neighbour, addr)
+			self.__node.addNeighbor(neighbor, addr)
 		elif mType == MSG_ECHO:
-			self.__node.echoReceive(seq, initor, neighbour, op, data)
+			self.__node.echoReceive(seq, initor, neighbor, op, data)
 		elif mType == MSG_ECHO_REPLY:
-			self.__node.echoReplyReceive(seq, initor, neighbour, op, data)
+			self.__node.echoReplyReceive(seq, initor, neighbor, op, data)
 		else:
 			self.__node.log("Received %d from %s:%s on (%d,%d), unknown mType" \
-				% (mType, addr[0], addr[1], neighbour[0], neighbour[1]))
+				% (mType, addr[0], addr[1], neighbor[0], neighbor[1]))
 		
 
-class neighbours:
+class neighbors:
 	"""
-	Neighbours wrapper / dictionary
+	Neighbors wrapper / dictionary
 	Differences from a standard dict:
 	 - Bounded to a node (for distance calculations)
-	 - The "toString" returns a table of neighbours and the distance to them
+	 - The "toString" returns a table of neighbors and the distance to them
 	 - The forAll function executes a function for all nodes
 	"""
-	__node = None
-	__dict = {}
 	def __init__(self, node):
 		self.__node = node
+		self.__dict = {}
 	def clear(self):
 		self.__dict.clear()
 	def __len__(self):
 		return len(self.__dict)
 	def __getitem__(self, key):
+		if key not in self.__dict:
+			self.__node.log("Neighbor %d,%d not found", key)
 		return self.__dict[key]
 	def __setitem__(self, pos, addr):
 		self.__dict[pos] = addr
@@ -111,41 +115,35 @@ class neighbours:
 			distance = self.__node.distanceTo(key)
 			retr += "(%d,%d):\t\t%d\t\t%s:%s\n" % (key[0], key[1], distance, node[0], node[1], )
 		return retr
-		
 
+""" Operators contains the known operators """
+class operations:
+	def __init__(self, opDir):
+		import operations
+
+		self.__map = ['NOOP', 'SIZE']
+		self.__fns = operations
+	def getFn(self, op, fnName):
+		return getattr(getattr(self.__fns, self.__map[op]), fnName)
+
+""" Wrapper class for an EchoWave """
+class EchoWave:
+	def __init__(self, value, father, pending):
+		self.father = father
+		self.value = value
+		self.pending = pending
+
+"""
+Node wrapper
+Contains all functions and data of the node.
+"""
 class nodeContainer:
-	"""
-	Node wrapper
-	Contains all functions and data of the node.
-	"""
-	__neighbours = None
-	__window = None
-	__debug = 1
-	
-	# Socket variables
-	__host = ''
-	__mcastAddr = None
-	address = None
-	peerSocket = None
-	mcastSocket = None
-
-	# Node values
-	position = None
-	value = None
-	range = 50
-	pingTime = 30 
-	__lastPing = 0
-
-	# EchoWave variables
-	__echoSeq = 0
-	__echoPending = {}
-	__echoFather = {}
 
 	"""
 	Creates a node, with:
 	 - mcast listener socket for pings multicasts
 	 - peerSocket for node to node connection
-	 - neighbours object to keep track of the neighbours 
+	 - neighbors object to keep track of the neighbors 
 	"""
 	def __init__(self):
 		# Multicast listener socket
@@ -156,8 +154,14 @@ class nodeContainer:
 		self.peerSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
 		self.peerSocket.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 5)
 		
+		# Defaults
 		self.__host = ''
-		self.__neighbours = neighbours(self)
+		self.__neighbors = neighbors(self)
+
+		self.__operations = operations("operations")
+		self.__echoWaves = {}
+		self.__debug = 1
+		self.__echoSeq = 0
 	""" Initiate sockets """
 	def init(self, mcast_addr):
 		self.__mcastAddr = mcast_addr
@@ -173,31 +177,29 @@ class nodeContainer:
 	def getConnections(self):
 		return [self.mcastSocket, self.peerSocket]
 	""" Create the GUI window """
-	def createWindow(self):
-		window = MainWindow()
+	def setWindow(self, window):
 		window.writeln( 'my address is %s:%s' % self.address )
 		window.writeln( 'my position is (%s, %s)' % self.position )
 		window.writeln( 'my sensor value is %s' % self.value )
 		self.__window = window
-		return window
 	""" Display a message on the window """
 	def log(self, msg, level=0):
 		if self.__debug > level:
 			timeStr = time.strftime("%H:%M:%S")
 			self.__window.writeln("[%s]: %s" % (timeStr, msg))
-	""" --- Neighbour operations --- """
-	""" Add a neighbour """
-	def addNeighbour(self, pos, addr):
+	""" --- Neighbor operations --- """
+	""" Add a neighbor """
+	def addNeighbor(self, pos, addr):
 		self.log("Received PONG from %s:%s at (%d,%d) " \
 			% (addr[0], addr[1], pos[0], pos[1]), 1)
 		if self.inRange(pos):
-			self.__neighbours[pos] = addr
-			self.log("Found neighbour (%d,%d)" % pos)
-	""" Log a list of all neighbours """
-	def listNeighbours(self):
-		self.log("/-- Current known neighbours --\\")
-		self.log(str(self.__neighbours))
-		self.log("\\-- Current known neighbours --/")
+			self.__neighbors[pos] = addr
+			self.log("Found neighbor (%d,%d)" % pos)
+	""" Log a list of all neighbors """
+	def listNeighbors(self):
+		self.log("/-- Current known neighbors --\\")
+		self.log(str(self.__neighbors))
+		self.log("\\-- Current known neighbors --/")
 	""" Returns if the given position is in range of the node """
 	def inRange(self, pos):
 		return self.distanceTo(pos) < self.range
@@ -219,14 +221,14 @@ class nodeContainer:
 		if self.__lastPing + self.pingTime < time.time():
 			self.ping()
 			self.__lastPing = time.time()
-	""" clear neighbours and pings to all nodes by multicasting """
+	""" clear neighbors and pings to all nodes by multicasting """
 	def ping(self):
-		self.log("Cleared neighbour list", 1)
-		self.__neighbours.clear()
-		self.log("Pinging for neighbours")
+		self.log("Cleared neighbor list", 1)
+		self.__neighbors.clear()
+		self.log("Pinging for neighbors")
 		cmd = message_encode(MSG_PING, 0, self.position, self.position)
 		self.peerSocket.sendto(cmd, self.__mcastAddr)
-	""" Upon receiving a pong, add that node to its neighbours """
+	""" Upon receiving a pong, add that node to its neighbors """
 	def pong(self, initor, addr):
 		if initor == self.position:
 			return
@@ -235,33 +237,41 @@ class nodeContainer:
 		self.peerSocket.sendto(cmd, addr)
 	""" --- Echo operations --- """
 	""" Start an Echo Wave with given operation and starting data """
-	def echoInit(self, op=0, data=0):
+	def echoInit(self, op=0):
 		self.__echoSeq += 1
+		key = echoKey(self.__echoSeq, self.position)
 		
-		self.log("Sending echo wave with sequence number %d" % self.__echoSeq)
+		self.log("Sending echo wave with sequence number %d" % self.__echoSeq, 1)
 
-		self.echoSend(self.__echoSeq, self.position, op, data)
+		opFn = self.__operations.getFn(op, "init")
+		self.__echoWaves[key] = EchoWave(opFn(self), None, len(self.__neighbors))
+
+		self.echoSend(self.__echoSeq, self.position, op)
 	""" 
-	Send the EchoWave to all neighbours, 
+	Send the EchoWave to all neighbors, 
 	Setting the correct number of replys to wait for 
 	"""
-	def echoSend(self, seq, initor, op, data, excl=(-1,-1)):
+	def echoSend(self, seq, initor, op, excl=(-1,-1)):
 		key = echoKey(seq, initor)
 
+		data = self.__echoWaves[key].value
+
 		self.log(
-			"Sending echo wave with sequence number %d , initiated by (%d,%d)" \
-			% (seq, initor[0], initor[1]))
+			("Sending echo wave with sequence number %d , initiated by (%d,%d)"+\
+			" op: %d, data: %d"
+			)% (seq, initor[0], initor[1], op, data), 1)
 		cmd = message_encode(MSG_ECHO, seq, initor, self.position, op, data)
 
-		# Count neighbours except the father node
-		self.__echoPending[key] = len(self.__neighbours)
 		if excl[0] > -1 and excl[1] > -1:
-			self.__echoPending[key] -= 1
+			self.__echoWaves[key].pending -= 1
 
-		# No neighbours to sent to? Send a reply immidiately
-		if self.__echoPending[key] < 1:
-			self.echoReplySend(self.__echoFather[key], seq, \
-				initor, self.position, op, data)
+		# No neighbors to sent to? Send a reply immidiately
+		if self.__echoWaves[key].pending < 1:
+			father = self.__echoWaves[key].father
+			if father != None:
+				self.echoReplySend(father, seq, initor, self.position, op)
+			else:
+				self.echoFinal(seq, initor, op)
 
 		""" Callback function for the actual sending """
 		def callback(pos, addr):
@@ -270,7 +280,7 @@ class nodeContainer:
 			self.log("Sending echo wave to %s:%s" % (addr), 1)
 			self.peerSocket.sendto(cmd, addr)
 
-		self.__neighbours.forAll(callback)
+		self.__neighbors.forAll(callback)
 	""" 
 	Upon receiving a reply,
 	 - Lower the amount of replys to wait for
@@ -278,56 +288,75 @@ class nodeContainer:
 	  - Goto echoFinal if this node is the initiator
 	  - Else, send reply to father node.
 	"""
-	def echoReplyReceive(self, seq, initor, neighbour, op, data):
+	def echoReplyReceive(self, seq, initor, neighbor, op, data):
 		key = echoKey(seq, initor)
 
-		self.__echoPending[key] -= 1
-		self.log("Received Echo_Reply from (%d, %d), left: %d" % \
-			(neighbour[0], neighbour[1], self.__echoPending[key]) )
-		if self.__echoPending[key] < 1:
+		self.__echoWaves[key].pending -= 1
+		opFn = self.__operations.getFn(op, "reply")
+		self.__echoWaves[key].value = opFn(self.__echoWaves[key].value, data, self)
+
+		self.log("Received Echo_Reply from (%d, %d) op: %d, data: %d, left: %d"\
+			% (neighbor[0], neighbor[1], op, data, \
+				self.__echoWaves[key].pending), 1)
+		if self.__echoWaves[key].pending < 1:
 			# Is own echo or sent it back to father
 			if initor[0] == self.position[0] and initor[1] == self.position[1]:
-				self.echoFinal(seq, initor, neighbour, op, data)
+				self.echoFinal(seq, initor, op)
 				return
 			# Sent it to the father node
-			fatherAddr = self.__echoFather[key]
-			self.echoReplySend(fatherAddr, seq, initor, neighbour, op, data)
-	""" Send an echo reply to the neighbour given in destPos """
-	def echoReplySend(self, destPos, seq, initor, neighbour, op, data):
-		addr = self.__neighbours[destPos]
+			fatherAddr = self.__echoWaves[key].father
+			self.echoReplySend(fatherAddr, seq, initor, neighbor, op)
+	""" Send an echo reply to the neighbor given in destPos """
+	def echoReplySend(self, destPos, seq, initor, neighbor, op):
+		key = echoKey(seq, initor)
+		addr = self.__neighbors[destPos]
 
-		self.log("Sending EchoReply to addr %s:%s)" % addr)
+		data = self.__echoWaves[key].value
+		opFn = self.__operations.getFn(op, 'send')
+		data = opFn(data, self)
+
+		self.log("Sending EchoReply to addr %s:%s with op: %d, data: %d" %\
+			(addr[0], addr[1], op, data ), 1)
 
 		cmd = message_encode(MSG_ECHO_REPLY, seq, initor, self.position, op, data)
 		self.peerSocket.sendto(cmd, addr)
 	""" Puts the result of the on the screen """
-	def echoFinal(self, seq, initor, neighbour, op, data):
-		self.log("Received final echo back, op: %d, data: %d" % (op, data))
+	def echoFinal(self, seq, initor, op):
+		key = echoKey(seq, initor)
+		data = self.__echoWaves[key].value
+
+		opFn = self.__operations.getFn(op, "final")
+		opFn(data, self)
+
+		self.log("Received final echo back, op: %d, data: %d" % (op, data), 1)
 	""" 
 	Upon receiving an Echo
 	 - Decide if you alrady got this echoWave by checking if the combination
 	   of initiator and sequence number already exists in the father dict
-	 - Adds the given neighbour to the fatherDict with the given sequence number
+	 - Adds the given neighbor to the fatherDict with the given sequence number
 	"""
-	def echoReceive(self, seq, initor, neighbour, op, data):
+	def echoReceive(self, seq, initor, neighbor, op, data):
 		key = echoKey(seq, initor)
 
 		# Already received Echo
-		if key in self.__echoFather or (initor[0] == self.position[0] \
+		if key in self.__echoWaves or (initor[0] == self.position[0] \
 			and initor[1] == self.position[1]):
-				self.echoReplySend(neighbour, seq, initor, neighbour, op, data)
+				opFn = self.__operations.getFn(op, 'emptyReply')
+				data = opFn(op, data, self)
+
+				self.echoReplySend(neighbor, seq, initor, neighbor, op)
 				return
 
 		# Adds the sequence number + initiator position in the dictionary 
-		# with the neighbour as the father node
-		self.__echoFather[key] = neighbour
+		# with the neighbor as the father node
+		self.__echoWaves[key] = EchoWave(data, neighbor, len(self.__neighbors))
 
 		self.log(
 			("Received echo wave with sequence number %d initiated by (%d,%d)"+\
 			"from (%d,%d)") %\
-			(seq, initor[0], initor[1], neighbour[0], neighbour[1]))
+			(seq, initor[0], initor[1], neighbor[0], neighbor[1]), 1)
 		# Sent it foward
-		self.echoSend(seq, initor, op, data, excl=neighbour)
+		self.echoSend(seq, initor, op, excl=neighbor)
 
 
 
@@ -351,7 +380,8 @@ def main(mcast_addr,
 	node.value = sensor_val
 	node.pingTime = ping_period
 	# -- create gui
-	window = node.createWindow()
+	window = MainWindow()
+	node.setWindow(window)
 	# -- Command/message parser
 	parser = msgParser(node)
 	# -- Both peer and Mcast connections
