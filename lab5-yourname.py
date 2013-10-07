@@ -14,7 +14,7 @@ TODO
  - Check if position is already taken
  - Check for a better way to compare tuples and calculating with them
 BUGS
- - Needs more testing
+ - Echo's doesn't get send father than 1 hop? maybe? Need to check met debug mode
 """
 import sys
 import struct
@@ -24,7 +24,6 @@ from random import randint
 from gui import MainWindow
 from sensor import *
 import time
-
 
 
 # Get random position in NxN grid.
@@ -116,15 +115,14 @@ class neighbors:
 			retr += "(%d,%d):\t\t%d\t\t%s:%s\n" % (key[0], key[1], distance, node[0], node[1], )
 		return retr
 
-""" Operators contains the known operators """
-class operations:
-	def __init__(self, opDir):
+""" Operation wrappers, getFn gives the function defined by the given operation
+	and the fnName """
+class Operations:
+	__map = ['NOOP', 'SIZE']
+	@staticmethod
+	def getFn(op, fnName):
 		import operations
-
-		self.__map = ['NOOP', 'SIZE']
-		self.__fns = operations
-	def getFn(self, op, fnName):
-		return getattr(getattr(self.__fns, self.__map[op]), fnName)
+		return getattr(getattr(operations, Operations.__map[op]), fnName)
 
 """ Wrapper class for an EchoWave """
 class EchoWave:
@@ -155,12 +153,12 @@ class nodeContainer:
 		self.peerSocket.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 5)
 		
 		# Defaults
+		self.__debug = 1
 		self.__host = ''
 		self.__neighbors = neighbors(self)
 
-		self.__operations = operations("operations")
+		# Echo wave defaults
 		self.__echoWaves = {}
-		self.__debug = 1
 		self.__echoSeq = 0
 	""" Initiate sockets """
 	def init(self, mcast_addr):
@@ -243,7 +241,7 @@ class nodeContainer:
 		
 		self.log("Sending echo wave with sequence number %d" % self.__echoSeq, 1)
 
-		opFn = self.__operations.getFn(op, "init")
+		opFn = Operations.getFn(op, "init")
 		self.__echoWaves[key] = EchoWave(opFn(self), None, len(self.__neighbors))
 
 		self.echoSend(self.__echoSeq, self.position, op)
@@ -292,7 +290,7 @@ class nodeContainer:
 		key = echoKey(seq, initor)
 
 		self.__echoWaves[key].pending -= 1
-		opFn = self.__operations.getFn(op, "reply")
+		opFn = Operations.getFn(op, "reply")
 		self.__echoWaves[key].value = opFn(self.__echoWaves[key].value, data, self)
 
 		self.log("Received Echo_Reply from (%d, %d) op: %d, data: %d, left: %d"\
@@ -312,7 +310,7 @@ class nodeContainer:
 		addr = self.__neighbors[destPos]
 
 		data = self.__echoWaves[key].value
-		opFn = self.__operations.getFn(op, 'send')
+		opFn = Operations.getFn(op, 'send')
 		data = opFn(data, self)
 
 		self.log("Sending EchoReply to addr %s:%s with op: %d, data: %d" %\
@@ -325,7 +323,7 @@ class nodeContainer:
 		key = echoKey(seq, initor)
 		data = self.__echoWaves[key].value
 
-		opFn = self.__operations.getFn(op, "final")
+		opFn = Operations.getFn(op, "final")
 		opFn(data, self)
 
 		self.log("Received final echo back, op: %d, data: %d" % (op, data), 1)
@@ -341,7 +339,7 @@ class nodeContainer:
 		# Already received Echo
 		if key in self.__echoWaves or (initor[0] == self.position[0] \
 			and initor[1] == self.position[1]):
-				opFn = self.__operations.getFn(op, 'emptyReply')
+				opFn = Operations.getFn(op, 'emptyReply')
 				data = opFn(op, data, self)
 
 				self.echoReplySend(neighbor, seq, initor, neighbor, op)
