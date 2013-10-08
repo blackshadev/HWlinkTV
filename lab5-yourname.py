@@ -54,6 +54,8 @@ class msgParser:
 			self.__node.echoInit(OP_NOOP)
 		elif line == "size":
 			self.__node.echoInit(OP_SIZE)
+		elif line == "max":
+			self.__node.echoInit(OP_MAX)
 		elif line == "move":
 			self.__node.moveNode()
 		else:
@@ -118,7 +120,7 @@ class neighbors:
 """ Operation wrappers, getFn gives the function defined by the given operation
 	and the fnName """
 class Operations:
-	__map = ['NOOP', 'SIZE']
+	__map = ['NOOP', 'SIZE', 'SUM', 'MIN', 'MAX']
 	@staticmethod
 	def getFn(op, fnName):
 		import operations
@@ -153,7 +155,7 @@ class nodeContainer:
 		self.peerSocket.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 5)
 		
 		# Defaults
-		self.__debug = 1
+		self.__debug = 2
 		self.__host = ''
 		self.__neighbors = neighbors(self)
 
@@ -296,6 +298,7 @@ class nodeContainer:
 		self.log("Received Echo_Reply from (%d, %d) op: %d, data: %d, left: %d"\
 			% (neighbor[0], neighbor[1], op, data, \
 				self.__echoWaves[key].pending), 1)
+
 		if self.__echoWaves[key].pending < 1:
 			# Is own echo or sent it back to father
 			if initor[0] == self.position[0] and initor[1] == self.position[1]:
@@ -305,6 +308,19 @@ class nodeContainer:
 			fatherAddr = self.__echoWaves[key].father
 			self.echoReplySend(fatherAddr, seq, initor, neighbor, op)
 	""" Send an echo reply to the neighbor given in destPos """
+	def echoReplySendEmpty(self, destPos, seq, initor, neighbor, op):
+		key = echoKey(seq, initor)
+		addr = self.__neighbors[destPos]
+
+		data = self.__echoWaves[key].value
+		opFn = Operations.getFn(op, 'emptyReply')
+		data = opFn(data, self)
+
+		self.log("Sending EchoReply to addr %s:%s with op: %d, data: %d" %\
+			(addr[0], addr[1], op, data ), 1)
+
+		cmd = message_encode(MSG_ECHO_REPLY, seq, initor, self.position, op, data)
+		self.peerSocket.sendto(cmd, addr)
 	def echoReplySend(self, destPos, seq, initor, neighbor, op):
 		key = echoKey(seq, initor)
 		addr = self.__neighbors[destPos]
@@ -339,10 +355,8 @@ class nodeContainer:
 		# Already received Echo
 		if key in self.__echoWaves or (initor[0] == self.position[0] \
 			and initor[1] == self.position[1]):
-				opFn = Operations.getFn(op, 'emptyReply')
-				data = opFn(op, data, self)
 
-				self.echoReplySend(neighbor, seq, initor, neighbor, op)
+				self.echoReplySendEmpty(neighbor, seq, initor, neighbor, op)
 				return
 
 		# Adds the sequence number + initiator position in the dictionary 
