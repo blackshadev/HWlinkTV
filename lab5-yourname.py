@@ -56,8 +56,14 @@ class msgParser:
 			self.__node.echoInit(OP_SIZE)
 		elif line == "max":
 			self.__node.echoInit(OP_MAX)
+		elif line == "min":
+			self.__node.echoInit(OP_MIN)
+		elif line == "sum":
+			self.__node.echoInit(OP_SUM)
 		elif line == "move":
 			self.__node.moveNode()
+		elif line == "debug on" or line == "debug off":
+			self.__node.debugMode(line)
 		else:
 			self.__node.log("No command for %s" % line)
 	"""
@@ -155,7 +161,7 @@ class nodeContainer:
 		self.peerSocket.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 5)
 		
 		# Defaults
-		self.__debug = 2
+		self.__debug = 1
 		self.__host = ''
 		self.__neighbors = neighbors(self)
 
@@ -187,6 +193,20 @@ class nodeContainer:
 		if self.__debug > level:
 			timeStr = time.strftime("%H:%M:%S")
 			self.__window.writeln("[%s]: %s" % (timeStr, msg))
+	""" Turn debug mode on/off """
+	def debugMode(self, line):
+		if line == "debug on":
+			if self.__debug == 2:
+				self.log("Already in debug mode")
+			else:
+				self.__debug = 2
+				self.log("Entered debug mode")
+		else:
+			if self.__debug != 2:
+				self.log("Not in debug mode")
+			else:
+				self.__debug = 1
+				self.log("Exited debug mode")
 	""" --- Neighbor operations --- """
 	""" Add a neighbor """
 	def addNeighbor(self, pos, addr):

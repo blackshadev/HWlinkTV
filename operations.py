@@ -70,3 +70,45 @@ class MAX:
 	@staticmethod
 	def emptyReply(newData, node):
 		return -1
+
+class MIN:
+	@staticmethod
+	def init(node):
+		return node.value
+	@staticmethod
+	def final(data, node):
+		node.log("The minimum value in the network is %d" % data)
+	@staticmethod
+	def send(data, node):
+		return node.value
+	@staticmethod
+	def reply(oldData, newData, node):
+		if newData == -1:
+			return oldData
+		new = min(oldData, newData)
+		node.log("oldMin: %d, maybe: %d, new: %d" % (oldData, newData, new),1)
+		return new
+	@staticmethod
+	def emptyReply(newData, node):
+		return -1
+
+class SUM:
+	@staticmethod
+	def init(node):
+		return node.value
+	@staticmethod
+	def final(data, node):
+		node.log("The total sum of the network is %d" % data)
+	@staticmethod
+	def send(data, node):
+		return node.value
+	@staticmethod
+	def reply(oldData, newData, node):
+		if newData == -1:
+			return oldData
+		new = oldData + newData
+		node.log("old: %d, new: %d, sum: %d" % (oldData, newData, new),1)
+		return new
+	@staticmethod
+	def emptyReply(newData, node):
+		return -1
