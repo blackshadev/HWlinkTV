@@ -68,8 +68,10 @@ class msgParser:
 			self.__node.debugMode(line)
 		elif cmd == "value":
 			self.__node.valueNode(line)
+		elif cmd == "help":
+			self.__node.helpList()
 		else:
-			self.__node.log("No command for %s" % cmd)
+			self.__node.log("No command for %s, type 'help' for a list of commands" % cmd)
 	"""
 	Network commands,
 	 - Gets the message and sender address
@@ -214,7 +216,20 @@ class nodeContainer:
 				self.__debug = 1
 				self.log("Exited debug mode")
 		else:
-			self.log("No command for %s" % line)
+			self.log("No command for %s, use: 'debug [on/off]'" % line)
+	def helpList(self):
+		self.log("/-- List of commands --\\ \n\n" \
+			"ping\t\tSends a multicast ping message\n" \
+			"list\t\tLists all known neighbors\n" \
+			"move\t\tMoves the node by choosing a new position randomly\n" \
+			"echo\t\tInitiates an echo wave\n" \
+			"size\t\tComputes the size of the network\n" \
+			"value\t\tThe node chooses a new random sensor value\n" \
+			"sum\t\tComputes the sum of all sensor values\n" \
+			"min\t\tComputes the minimum of all sensor values\n" \
+			"max\t\tComputes the maximum of all sensor values\n" \
+			"debug [on/off]\t\tEnables debugging logs\n")
+		self.log("\\-- List of commands --/")
 	""" --- Neighbor operations --- """
 	""" Add a neighbor """
 	def addNeighbor(self, pos, addr):
