@@ -24,6 +24,7 @@ from random import randint
 from gui import MainWindow
 from sensor import *
 import time
+import re
 
 
 # Get random position in NxN grid.
@@ -57,8 +58,16 @@ class msgParser:
 			self.__node.echoInit(OP_SIZE)
 		elif cmd == "max":
 			self.__node.echoInit(OP_MAX)
+		elif cmd == "min":
+			self.__node.echoInit(OP_MIN)
+		elif cmd == "sum":
+			self.__node.echoInit(OP_SUM)
 		elif cmd == "move":
-			self.__node.moveNode(line.split(' '))
+			self.__node.moveNode(line)
+		elif cmd == "debug":
+			self.__node.debugMode(line)
+		elif cmd == "value":
+			self.__node.valueNode(line)
 		else:
 			self.__node.log("No command for %s" % cmd)
 	"""
@@ -158,7 +167,7 @@ class nodeContainer:
 		self.peerSocket.setsockopt(IPPROTO_IP, IP_MULTICAST_TTL, 5)
 		
 		# Defaults
-		self.__debug = 2
+		self.__debug = 1
 		self.__host = ''
 		self.__neighbors = neighbors(self)
 
@@ -190,6 +199,20 @@ class nodeContainer:
 		if self.__debug > level:
 			timeStr = time.strftime("%H:%M:%S")
 			self.__window.writeln("[%s]: %s" % (timeStr, msg))
+	""" Turn debug mode on/off """
+	def debugMode(self, line):
+		if line == "debug on":
+			if self.__debug == 2:
+				self.log("Already in debug mode")
+			else:
+				self.__debug = 2
+				self.log("Entered debug mode")
+		else:
+			if self.__debug != 2:
+				self.log("Not in debug mode")
+			else:
+				self.__debug = 1
+				self.log("Exited debug mode")
 	""" --- Neighbor operations --- """
 	""" Add a neighbor """
 	def addNeighbor(self, pos, addr):
@@ -213,12 +236,24 @@ class nodeContainer:
 		
 		return math.sqrt(diff[0] ** 2 + diff[1] ** 2)
 	""" Move the node to a position, if no position given, than random """
-	def moveNode(self, lineArgs):
-		if len(lineArgs) > 2:
-			self.position = (int(args[1]), int(args[2]))
+	def moveNode(self, line):
+		matches = re.search('move\s(\d+)(?:,|\s)+(\d+).*', line)
+
+		if matches != None:
+			x, y = (min(int(matches.group(1)), args.grid),\
+				min(int(matches.group(2)), args.grid))
+			self.position = (x,y)
 		else:
 			self.position = random_position(args.grid)
 		self.log("Changed position to (%d,%d)" % self.position)
+	def valueNode(self, line):
+		matches = re.search('value\s(\d*).*', line)
+
+		if matches != None:
+			self.value = int(matches.group(1))
+		else:
+			self.value = randint(0, 100)
+		self.log("Changed value to %d" % self.value)
 	""" --- Protocol operations --- """
 	""" Executes a ping if the pingTime has elapsed since the lastPing """
 	def autoPing(self):
