@@ -46,20 +46,21 @@ class msgParser:
 	Window commands
 	"""
 	def parseLine(self, line):
-		if line == "ping":
+		cmd = line.split(' ')[0]
+		if cmd == "ping":
 			self.__node.ping()
-		elif line == "list":
+		elif cmd == "list":
 			self.__node.listNeighbors()
-		elif line == "echo":
+		elif cmd == "echo":
 			self.__node.echoInit(OP_NOOP)
-		elif line == "size":
+		elif cmd == "size":
 			self.__node.echoInit(OP_SIZE)
-		elif line == "max":
+		elif cmd == "max":
 			self.__node.echoInit(OP_MAX)
-		elif line == "move":
-			self.__node.moveNode()
+		elif cmd == "move":
+			self.__node.moveNode(line.split(' '))
 		else:
-			self.__node.log("No command for %s" % line)
+			self.__node.log("No command for %s" % cmd)
 	"""
 	Network commands,
 	 - Gets the message and sender address
@@ -74,7 +75,7 @@ class msgParser:
 		elif mType == MSG_PONG:
 			self.__node.addNeighbor(neighbor, addr)
 		elif mType == MSG_ECHO:
-			self.__node.echoReceive(seq, initor, neighbor, op, data)
+			self.__node.echoReceive(addr, seq, initor, neighbor, op, data)
 		elif mType == MSG_ECHO_REPLY:
 			self.__node.echoReplyReceive(seq, initor, neighbor, op, data)
 		else:
@@ -103,6 +104,8 @@ class neighbors:
 		return self.__dict[key]
 	def __setitem__(self, pos, addr):
 		self.__dict[pos] = addr
+	def __contains__(self, key):
+		return key in self.__dict
 	def forAll(self, fn):
 		count = 0
 		for key in self.__dict:
@@ -209,9 +212,12 @@ class nodeContainer:
 		diff = (self.position[0] - pos[0], self.position[1] - pos[1])
 		
 		return math.sqrt(diff[0] ** 2 + diff[1] ** 2)
-	""" Move the node to a random position """
-	def moveNode(self):
-		self.position = random_position(args.grid)
+	""" Move the node to a position, if no position given, than random """
+	def moveNode(self, lineArgs):
+		if len(lineArgs) > 2:
+			self.position = (int(args[1]), int(args[2]))
+		else:
+			self.position = random_position(args.grid)
 		self.log("Changed position to (%d,%d)" % self.position)
 	""" --- Protocol operations --- """
 	""" Executes a ping if the pingTime has elapsed since the lastPing """
@@ -267,9 +273,8 @@ class nodeContainer:
 
 		# No neighbors to sent to? Send a reply immidiately
 		if self.__echoWaves[key].pending < 1:
-			father = self.__echoWaves[key].father
-			if father != None:
-				self.echoReplySend(father, seq, initor, self.position, op)
+			if self.__echoWaves[key].father != None:
+				self.echoReplySend(seq, initor, self.position, op)
 			else:
 				self.echoFinal(seq, initor, op)
 
@@ -305,35 +310,39 @@ class nodeContainer:
 				self.echoFinal(seq, initor, op)
 				return
 			# Sent it to the father node
-			fatherAddr = self.__echoWaves[key].father
-			self.echoReplySend(fatherAddr, seq, initor, neighbor, op)
-	""" Send an echo reply to the neighbor given in destPos """
-	def echoReplySendEmpty(self, destPos, seq, initor, neighbor, op):
+			self.echoReplySend(seq, initor, neighbor, op)
+	"""
+	Send an empty echo reply to "toAddr", if the EchoWave is already
+	Kown, the operators emptyReply method gets the known data, else None
+	"""
+	def echoReplySendEmpty(self, toAddr, seq, initor, neighbor, op):
 		key = echoKey(seq, initor)
-		addr = self.__neighbors[destPos]
 
-		data = self.__echoWaves[key].value
+		data = None
+		if key in self.__echoWaves:
+			data = self.__echoWaves[key].value
 		opFn = Operations.getFn(op, 'emptyReply')
 		data = opFn(data, self)
 
 		self.log("Sending EchoReply to addr %s:%s with op: %d, data: %d" %\
-			(addr[0], addr[1], op, data ), 1)
+			(toAddr[0], toAddr[1], op, data ), 1)
 
 		cmd = message_encode(MSG_ECHO_REPLY, seq, initor, self.position, op, data)
-		self.peerSocket.sendto(cmd, addr)
-	def echoReplySend(self, destPos, seq, initor, neighbor, op):
+		self.peerSocket.sendto(cmd, toAddr)
+	def echoReplySend(self, seq, initor, neighbor, op):
 		key = echoKey(seq, initor)
-		addr = self.__neighbors[destPos]
+		father = self.__echoWaves[key].father
+		fatherAddr = self.__neighbors[father]
 
 		data = self.__echoWaves[key].value
 		opFn = Operations.getFn(op, 'send')
 		data = opFn(data, self)
 
 		self.log("Sending EchoReply to addr %s:%s with op: %d, data: %d" %\
-			(addr[0], addr[1], op, data ), 1)
+			(fatherAddr[0], fatherAddr[1], op, data ), 1)
 
 		cmd = message_encode(MSG_ECHO_REPLY, seq, initor, self.position, op, data)
-		self.peerSocket.sendto(cmd, addr)
+		self.peerSocket.sendto(cmd, fatherAddr)
 	""" Puts the result of the on the screen """
 	def echoFinal(self, seq, initor, op):
 		key = echoKey(seq, initor)
@@ -349,14 +358,14 @@ class nodeContainer:
 	   of initiator and sequence number already exists in the father dict
 	 - Adds the given neighbor to the fatherDict with the given sequence number
 	"""
-	def echoReceive(self, seq, initor, neighbor, op, data):
+	def echoReceive(self, fromAddr, seq, initor, neighbor, op, data):
 		key = echoKey(seq, initor)
 
-		# Already received Echo
-		if key in self.__echoWaves or (initor[0] == self.position[0] \
-			and initor[1] == self.position[1]):
+		# Send empty reply back to sender when: EchoWave already received,
+		# the sending node is not a known neighbor
+		if key in self.__echoWaves or not neighbor in self.__neighbors:
 
-				self.echoReplySendEmpty(neighbor, seq, initor, neighbor, op)
+				self.echoReplySendEmpty(fromAddr, seq, initor, neighbor, op)
 				return
 
 		# Adds the sequence number + initiator position in the dictionary 
