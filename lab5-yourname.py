@@ -415,7 +415,7 @@ class nodeContainer:
 
 		# Send empty reply back to sender when: EchoWave already received,
 		# the sending node is not a known neighbor
-		if key in self.__echoWaves or not neighbor in self.__neighbors:
+		if key in self.__echoWaves or neighbor not in self.__neighbors:
 
 				self.echoReplySendEmpty(fromAddr, seq, initor, neighbor, op)
 				return

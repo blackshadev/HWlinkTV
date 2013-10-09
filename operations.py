@@ -59,7 +59,7 @@ class MAX:
 		node.log("The maximum value in the network is %d" % data)
 	@staticmethod
 	def send(data, node):
-		return node.value
+		return max(data, node.value)
 	@staticmethod
 	def reply(oldData, newData, node):
 		if newData == -1:
@@ -80,7 +80,7 @@ class MIN:
 		node.log("The minimum value in the network is %d" % data)
 	@staticmethod
 	def send(data, node):
-		return node.value
+		return min(data, node.value)
 	@staticmethod
 	def reply(oldData, newData, node):
 		if newData == -1:
@@ -95,13 +95,13 @@ class MIN:
 class SUM:
 	@staticmethod
 	def init(node):
-		return node.value
+		return 0
 	@staticmethod
 	def final(data, node):
-		node.log("The total sum of the network is %d" % data)
+		node.log("The total sum of the network is %d" % (data + node.value))
 	@staticmethod
 	def send(data, node):
-		return node.value
+		return data + node.value
 	@staticmethod
 	def reply(oldData, newData, node):
 		if newData == -1:
