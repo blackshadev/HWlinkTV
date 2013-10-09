@@ -207,12 +207,14 @@ class nodeContainer:
 			else:
 				self.__debug = 2
 				self.log("Entered debug mode")
-		else:
+		elif line == "debug off":
 			if self.__debug != 2:
 				self.log("Not in debug mode")
 			else:
 				self.__debug = 1
 				self.log("Exited debug mode")
+		else:
+			self.log("No command for %s" % line)
 	""" --- Neighbor operations --- """
 	""" Add a neighbor """
 	def addNeighbor(self, pos, addr):
