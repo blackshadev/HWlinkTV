@@ -221,10 +221,10 @@ class nodeContainer:
 		self.log("/-- List of commands --\\ \n\n" \
 			"ping\t\tSends a multicast ping message\n" \
 			"list\t\tLists all known neighbors\n" \
-			"move\t\tMoves the node by choosing a new position randomly\n" \
+			"move [x y]\t\tMoves the node by choosing a new position randomly\n" \
 			"echo\t\tInitiates an echo wave\n" \
 			"size\t\tComputes the size of the network\n" \
-			"value\t\tThe node chooses a new random sensor value\n" \
+			"value [value]\t\tThe node chooses a new random sensor value\n" \
 			"sum\t\tComputes the sum of all sensor values\n" \
 			"min\t\tComputes the minimum of all sensor values\n" \
 			"max\t\tComputes the maximum of all sensor values\n" \
