@@ -1,3 +1,11 @@
+"""
+StatRed Inf 2 - 2014
+
+Students: Tessa Klunder, Vincent Hagen
+
+Week 1 Assignment 3
+"""
+
 import scipy
 from scipy.stats import norm
 import numpy as np
