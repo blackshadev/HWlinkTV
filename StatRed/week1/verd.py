@@ -9,7 +9,7 @@ def showPdf(rv):
     h = plt.plot(x, rv.pdf(x))
 
 def showCdf(rv):
-    x = np.linspace(-5, 5, 100)
+    x = np.linspace(-5* si, 5 * si, 100 * si)
     h = plt.plot(x, rv.cdf(x))
 
 """
