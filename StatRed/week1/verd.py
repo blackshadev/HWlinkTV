@@ -25,17 +25,16 @@ Plots the pdf and picks n random values, plots these values
 These values are automaticly noralised by using scipy.stats.norm.rvs func
 """
 def randNorm(rv, n):
-    showPdf(rv)
     R = rv.rvs(n)
     n, bins, patches = plt.hist(R, 50, normed=True)
 
 if __name__ == '__main__':
-
     mu = 1
     si = 1
     n = 1000
 
     rv = norm(loc=mu,scale=si)
+    showPdf(rv)
     randNorm(rv, n)
-    # showCdf(rv)
+    showCdf(rv)
     plt.show(rv)
