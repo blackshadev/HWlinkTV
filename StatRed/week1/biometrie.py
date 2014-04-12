@@ -1,4 +1,4 @@
-""" StatRed: Naïve Bayes Classifier 
+""" StatRed: Naive Bayes Classifier 
 " 
 " Authors: Tessa Klunder & Vincent Hagen
 " Date   : 12-4-2014
