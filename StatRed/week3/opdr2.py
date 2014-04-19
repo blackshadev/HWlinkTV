@@ -8,7 +8,6 @@
 "  1. amount of random values to use
 """
 
-
 import random
 import numpy as np
 import sys
