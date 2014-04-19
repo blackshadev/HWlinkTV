@@ -1,3 +1,7 @@
+"""
+
+"""
+
 import numpy as np
 import scipy.stats as stats
 import matplotlib.pyplot as plt
@@ -18,15 +22,22 @@ class Confidence:
     Checks howmany times of the samples mean lies 
      with intervals between the real mean.
     """
-    def sample(self, n, s, a):
+    def sample(self, n, s, a, plot=True):
         arr = []
+        Y   = []
+        err = []
 
         for i in range(0, s):
             samples = self.choice(n)
             c = self.calcBounds(samples, a)
             m = np.mean(samples)
+            Y.append(m)
+            err.append(c)
             arr.append( ( (m - c) <= self.mean) & ( self.mean <= (m + c)))
         print float(np.sum(arr))/len(arr)
+        plt.errorbar(range(0, s), Y, yerr=err, fmt=None)
+        plt.axhline(self.mean, color='r')
+        plt.show()
     """
     Calculate the sample confidence bounds.
     returns (+c * s) / (sqrt(n)) where s is the unbiased std of samples.
@@ -53,7 +64,7 @@ def logFile(fname):
 def main():
     data = logFile("tijden.log")
     conf = Confidence(data)
-    conf.sample(50, 100, 0.90)
+    conf.sample(50, 100, 0.80)
     
     print "real mean %s" % conf.mean
 
