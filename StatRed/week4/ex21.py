@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 """ Returns n samples of a normal distributed random variables with given
  	mean, and covariance """
 def multivariate(mean, cov, n):
-	d, U = np.linalg.eig(cov)
+	d, U = np.linalg.eigh(cov)
 	L = np.diagflat(d)
 	A = np.dot(U, np.sqrt(L))
 	X = np.random.randn(len(mean), n)

@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def multivariate(mean, cov, n):
-    d, U = np.linalg.eig(cov)
+    d, U = np.linalg.eigh(cov)
     L = np.diagflat(d)
     A = np.dot(U, np.sqrt(L))
     X = np.random.randn(4, n)
