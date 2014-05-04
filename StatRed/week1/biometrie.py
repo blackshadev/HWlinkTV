@@ -6,7 +6,7 @@
 " Implements a naive bayes classifier. 
 " It reads biometrie2014.csv, and can predict the sex of someone by body length, 
 " shoe size and weight.
-"  ( Apperently I (Vincent) a female... Well that's new! )
+"  ( Apparently Vincent is female... Well that's new! )
 """
 
 import scipy
@@ -37,9 +37,9 @@ class NBClassifier:
     """
     __dict__ = ["means", "stds", "arr", "t", "labels"]
     def __init__(self, arr, t, labels):
-        # we assume that in arr, we predict the first row, ad te rest is data
+        # we assume that in arr, we predict the first row and the rest is data
         self.arr = arr
-        # t is the apprioti change of female divided by that of a male
+        # t is the a priori chance of female divided by that of a male
         self.t = t
         self.means = []
         self.stds = []
@@ -57,7 +57,7 @@ class NBClassifier:
 
         items = np.array([self.arr[i] for i in idx])
 
-        # Mask for all males
+        # mask for all males
         mask = np.ma.array(items[:,0] < 1)
         subs = getRows(items, mask)
 
@@ -80,7 +80,7 @@ class NBClassifier:
             scale=self.stds[1][i]) for i in range(0, len(self.means[1]))])
     """
     Tests a case given in dat.
-    It will return True or False whenever it is a match or not.
+    It will return True or False whether it is a match or not.
     (In our case True = Male, False = Female)
     """
     def test(self, dat):
