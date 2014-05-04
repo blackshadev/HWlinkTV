@@ -34,7 +34,7 @@ def covMatrix(X):
     m /= n
     # Part of formula: Sum - (n * m.m^T)
     u = kwadSum - (n * np.dot(m, np.transpose(m)))
-    return u / (n - 1) #Includes last step of formula
+    return u / (n - 1), m #Includes last step of formula
 
 # Plots the 'n' largest eigenvectors as images.
 def showMaxN(eigv, eigb, n):
@@ -125,7 +125,7 @@ def main():
 
     print "Size of sample matrix: %s" %str(X.shape)
     print "Calculating covariance matrix"
-    cov = covMatrix(X)
+    cov, mu = covMatrix(X)
     print "Calculating eigenvalues"
     d, U = sortedeig(cov)
 
