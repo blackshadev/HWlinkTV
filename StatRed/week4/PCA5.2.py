@@ -70,15 +70,22 @@ def optimal_k(eigv, t=0.99):
 
 """ Constructs a vector x which is a subset of X in terms of 
     eigenvectors U of covarience matrix of X, 
-    mean of the whole dataset X,
-     """
+    mean of the whole dataset X
+    The returned dataset describes x in the U space in k dimensions
+"""
 def constructSpectByU(x, U, mean, k):
     x = np.copy(x)
     x -= mean
-    return np.dot(np.transpose(U), x)[:-k]
+    return np.dot(np.transpose(U), x)[0:k]
 
+""" Reconstructs the vector x.
+    vector x lies within Y, 
+    Y is the vector x described by matrix U in k dimensions
+    U is the eigenvectors of the covarience matrix of X
+    mean is the mean of dataset X 
+"""
 def reconstructSpect(Y, U, mean, k):
-    _X = np.dot(U[:,:-k], Y)
+    _X = np.dot(U[:,0:k], Y)
     return _X + mean
 
 def main():
@@ -131,15 +138,16 @@ def main():
 
     print "Natural k: %d, Munsell k: %d" % (a_k, b_k)
 
-    x = np.transpose(a)[:,42]
+    x = np.transpose(b)[:,1]
     print "sample vector"
     print x
 
-    print "Constructing vector by U"
-    Y = constructSpectByU(x, a_eigb, np.mean(a, 0), a_k)
+    k = min(b_k, a_eigv.size-1)
+    print "Constructing vector by U in %d dimensions" % k
+    Y = constructSpectByU(x, b_eigb, np.mean(b, 0), k)
 
     print "Reconstructing spectrum"
-    _x = reconstructSpect(Y, a_eigb, np.mean(a, 0), a_k)
+    _x = reconstructSpect(Y, b_eigb, np.mean(b, 0), k)
 
     print "Reconstructed sample vector"
     print _x
