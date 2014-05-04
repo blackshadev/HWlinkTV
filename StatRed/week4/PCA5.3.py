@@ -3,8 +3,8 @@
 " Authors: Tessa Klunder & Vincent Hagen
 " Date   : 4-5-2014
 "
-" Plots multivariant normal distributed values for a given mu and sigma.
-" It then estimates the values of the mean and the covariance. 
+" Calculates the covariance matrix and eigenstructure of an image. It uses 
+" this to analyze details of the image.
 "
 """
 

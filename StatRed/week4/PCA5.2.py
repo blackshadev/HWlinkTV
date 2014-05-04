@@ -3,8 +3,7 @@
 " Authors: Tessa Klunder & Vincent Hagen
 " Date   : 4-5-2014
 "
-" Plots multivariant normal distributed values for a given mu and sigma.
-" It then estimates the values of the mean and the covariance. 
+" Calculates the covariance matrix and eigenstructure of two .asc files.
 "
 """
 
@@ -12,8 +11,7 @@ import pylab as pl
 import numpy as np
 
 
-# Calculate the covariance matrix with the formula given
-# In exercise 5.1
+# Calculate the covariance matrix with the formula given in exercise 5.1
 def covMatrix(X):
     n = X.shape[0]
 
