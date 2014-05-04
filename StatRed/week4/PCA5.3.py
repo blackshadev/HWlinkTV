@@ -1,10 +1,23 @@
+""" StatRed: Week 4 Opdr 5.3 
+" 
+" Authors: Tessa Klunder & Vincent Hagen
+" Date   : 4-5-2014
+"
+" Plots multivariant normal distributed values for a given mu and sigma.
+" It then estimates the values of the mean and the covariance. 
+"
+"""
+
 import pylab as pl
 import numpy as np
 
+# Calculate the covariance matrix, with X being a 'slice' of the image. We  use 
+# the formula from Exercise 5.1 to calculate the matrix.
 def covMatrix(X):
     n = X.shape[0]
 
     done = 0
+    # 'm' will be the estimator for the mean
     m = np.zeros((X.shape[1], 1))
     kwadSum = np.zeros((X.shape[1], X.shape[1]))
     print np.dot(m, np.transpose(m)).shape
@@ -13,14 +26,18 @@ def covMatrix(X):
         x = np.array(X[i,:]).reshape((X.shape[1], 1))
         m += x
         kwadSum += np.dot(x, np.transpose(x))
+        # Print status of calculation
         if float(i) / X.shape[0] > done / 10.:
             done += 1
             print "Cov Matrix (%s%%)" % str(int(done * 10))
-            
+    
+    # Calculate the actual m by dividing it by n
     m /= n
+    # Part of formula: Sum - (n * m.m^T)
     u = kwadSum - (n * np.dot(m, np.transpose(m)))
-    return u / (n - 1)
+    return u / (n - 1) #Includes last step of formula
 
+# Plots the six largest eigenvectors as images.
 def showMaxN(eigv, eigb, n):
     max_idx = eigv.argsort()[-n:]
     
@@ -34,6 +51,7 @@ def showMaxN(eigv, eigb, n):
         count += 1
     pl.show()
 
+# Plots the Scree diagram that shows all the eigenvalues from high to low.
 def plotScree(Y):
     pl.figure()
     pl.bar(range(Y.size), sorted(Y, reverse=True))
@@ -42,14 +60,6 @@ def plotScree(Y):
 def main():
     print "Reading image"
     a = pl.imread("trui.png")
-    # pl.figure(1)
-
-    # pl.subplot(1,2,1)
-    # pl.imshow(a,cmap=pl.cm.gray)
-    # d = a[100:126,100:126]
-    # pl.subplot(1,2,2)
-    # pl.imshow(d,cmap=pl.cm.gray)
-    # pl.show()
 
     print "Slicing image"
     X = np.array(
@@ -60,7 +70,7 @@ def main():
         )
 
     print "Size of sample matrix: %s" %str(X.shape)
-    print "Calculating covarience matrix"
+    print "Calculating covariance matrix"
     cov = covMatrix(X)
     print "Calculating eigenvalues"
     eigv, eigb = np.linalg.eigh(cov)
