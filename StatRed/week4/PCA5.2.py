@@ -131,7 +131,6 @@ def main():
     print "First 3 components of Natural capture %s %%" % str(nat_3_pca * 100)
     print "First 3 components of Munsell capture %s %%" % str(mun_3_pca * 100)
 
-
     print "Finding K values to contain 99% of the spectrum"
     a_k = optimal_k(a_eigv)
     b_k = optimal_k(b_eigv)
