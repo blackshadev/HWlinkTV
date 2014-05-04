@@ -1,43 +1,74 @@
 import pylab as pl
 import numpy as np
 
+
+""" Calculate the covarience matrix with the formula given
+    In exercise 5.1 """ 
 def covMatrix(X):
     n = X.shape[0]
 
     done = 0
     m = np.zeros((X.shape[1], 1))
     kwadSum = np.zeros((X.shape[1], X.shape[1]))
-    print np.dot(m, np.transpose(m)).shape
 
     for i in range(X.shape[0]):
         x = np.array(X[i,:]).reshape((X.shape[1], 1))
         m += x
         kwadSum += np.dot(x, np.transpose(x))
         if float(i) / X.shape[0] > done / 10.:
-            done += 1
             print "Cov Matrix (%s%%)" % str(int(done * 10))
+            done += 1
             
     m /= n
     u = kwadSum - (n * np.dot(m, np.transpose(m)))
-    return u / (n - 1)
+    return (u / (n - 1), m)
 
-def showMaxN(eigv, eigb, n):
+""" Sort the eigenvectors based upon their eigenvalues (desc)
+    Copied from pdf ~handout_5_PCA """
+def sortedeig(M):
+    d, U = np.linalg.eigh(M)
+    si = np.argsort(d)[-1::-1]
+    d = d[si]
+    U = U[:,si]
+    return (d, U)
+
+""" Plots the max n eigenvalues their vectors as image """
+def showMaxN(eigv, eigb, mu, n):
     max_idx = eigv.argsort()[-n:]
     
     pl.figure()
     count = 1
     for i in max_idx:
         pl.subplot(2,3,count)
+        Y = np.reshape(eigb[:,i], (625, 1)) - mu
         pl.imshow(
-            np.reshape(eigb[:,i], (25,25)), 
+            np.reshape(Y, (25,25)), 
             cmap=pl.cm.gray)
         count += 1
     pl.show()
 
-def plotScree(Y):
-    pl.figure()
-    pl.bar(range(Y.size), sorted(Y, reverse=True))
+def plotScree(Y, name=None):
+    pl.bar(range(Y.size), Y)
+    if name != None:
+        pl.savefig(name)
+    elif name != False:
+        pl.show()
+
+def reconstructImage(eigb, mu, a, pos):
+    X = a[:,42]
+    print X.shape, mu.shape
+    X = X - mu
+
+    yzm = np.dot(np.transpose(eigb), X)
+    yzm = yzm[:-1]
+    U = eigb[:,:-1]
+    print U.shape
+    xzm_k = np.dot(U, yzm)
+
+    x_k = xzm_k + mu
+    pl.imshow(x_k, cmap=pl.cm.gray)
     pl.show()
+
 
 def main():
     print "Reading image"
@@ -61,13 +92,15 @@ def main():
 
     print "Size of sample matrix: %s" %str(X.shape)
     print "Calculating covarience matrix"
-    cov = covMatrix(X)
+    cov, mu = covMatrix(X)
     print "Calculating eigenvalues"
-    eigv, eigb = np.linalg.eigh(cov)
+    eigv, eigb = sortedeig(cov)
+
+    print eigv
 
     plotScree(eigv)
-    showMaxN(eigv, eigb, 6)
-    
+    showMaxN(eigv, eigb, mu, 6)
+    reconstructImage(eigb, mu, a, (100,100))
 
 if __name__ == '__main__':
     main()
