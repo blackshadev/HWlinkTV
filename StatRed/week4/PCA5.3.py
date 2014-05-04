@@ -33,14 +33,14 @@ def sortedeig(M):
     return (d, U)
 
 """ Plots the max n eigenvalues their vectors as image """
-def showMaxN(eigv, eigb, mu, n):
-    max_idx = eigv.argsort()[-n:]
+def showMaxN(d, U, mu, n):
+    max_idx = d.argsort()[-n:]
     
     pl.figure()
     count = 1
     for i in max_idx:
         pl.subplot(2,3,count)
-        Y = np.reshape(eigb[:,i], (625, 1)) - mu
+        Y = np.reshape(U[:,i], (625, 1)) - mu
         pl.imshow(
             np.reshape(Y, (25,25)), 
             cmap=pl.cm.gray)
@@ -54,39 +54,57 @@ def plotScree(Y, name=None):
     elif name != False:
         pl.show()
 
-def reconstructImage(eigb, mu, a, pos):
-    X = a[:,42]
-    print X.shape, mu.shape
-    X = X - mu
+"""
+    Reconstruct a sample of a on given position in k dimensions of U
+    U eigenvectors of the covarience matrix of a
+    mu the mean of a 
+"""
+def reconstructImage(U, mu, a, pos, k):
+    mu = mu.flatten()
 
-    yzm = np.dot(np.transpose(eigb), X)
-    yzm = yzm[:-1]
-    U = eigb[:,:-1]
-    print U.shape
-    xzm_k = np.dot(U, yzm)
+    # Sample to describe (25,25) image on given position
+    im = a[pos[0]: (pos[0] + 25), pos[1]: (pos[1] + 25)] 
+    X = im.flatten()
 
-    x_k = xzm_k + mu
-    pl.imshow(x_k, cmap=pl.cm.gray)
+    print "Constructing Y, which is X in terms of U in %d dimensions" % k
+    # Describe x in a space constructed by k dimensions of U
+    X = X - mu # place center of samples to (0, 0)
+    Uk = U[:,:k] # k dimensions of U
+    Y = np.dot( Uk.transpose(), X) # yzm is x in Uk coordinate system in k dimensions
+
+    print "Reconstructing X with Y"
+    # Reconstruct x with yzm
+    Xk = np.dot(Uk, Y) + mu
+    imk = Xk.reshape(25, 25)
+
+    # Plot images
+    pl.subplot(121)
+    pl.title("Original")
+    pl.imshow(im, cmap='gray')
+    pl.subplot(122)
+    pl.title("Reconstructed")
+    pl.imshow(imk, cmap='gray')
     pl.show()
 
+""" Calculate with howmany elements (k) contains t percent of the total values """
+def optimal_k(eigv, t=0.99):
+    stop = t * np.sum(eigv)
+    rSum = 0
+
+    for i in range(0, eigv.size):
+        if np.sum(eigv[0:i]) > stop:
+            return i
+    return -1
 
 def main():
     print "Reading image"
     a = pl.imread("trui.png")
-    # pl.figure(1)
-
-    # pl.subplot(1,2,1)
-    # pl.imshow(a,cmap=pl.cm.gray)
-    # d = a[100:126,100:126]
-    # pl.subplot(1,2,2)
-    # pl.imshow(d,cmap=pl.cm.gray)
-    # pl.show()
 
     print "Slicing image"
     X = np.array(
         [np.array(a[x:x+25,y:y+25]).flatten() 
-            for x in range(0, a.shape[0] - 24, 1)
-            for y in range(0, a.shape[1] - 24, 1)
+            for x in range(0, a.shape[0] - 24, 4)
+            for y in range(0, a.shape[1] - 24, 4)
         ]
         )
 
@@ -94,13 +112,15 @@ def main():
     print "Calculating covarience matrix"
     cov, mu = covMatrix(X)
     print "Calculating eigenvalues"
-    eigv, eigb = sortedeig(cov)
+    d, U = sortedeig(cov)
 
-    print eigv
+    plotScree(d)
+    showMaxN(d, U, mu, 6)
 
-    plotScree(eigv)
-    showMaxN(eigv, eigb, mu, 6)
-    reconstructImage(eigb, mu, a, (100,100))
+    k = optimal_k(d)
+    reconstructImage(U, mu, a, (100, 100), k)
+    reconstructImage(U, mu, a, (100, 100), k*2)
+
 
 if __name__ == '__main__':
     main()
