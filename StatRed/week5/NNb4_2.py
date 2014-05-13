@@ -9,7 +9,7 @@ sys.path.append("./python")
 
 from pylab import tile, sum, argmin
 class NNb:
-    def __init__(self, X, c, N=3):
+    def __init__(self, X, c, N=31):
         self.n, self.N = X.shape
         self.X = X
         self.c = c
