@@ -25,7 +25,7 @@ if __name__ == '__main__':
 	samples = 1000
 	mean = [[0],[1],[2],[-1]]
 
-	# Overgenomen van R. Wolferink
+	# Acquired from R. Wolferink
 	cov = [[  3.01602775,   1.02746769,  -3.60224613,  -2.08792829],
            [  1.02746769,   5.65146472,  -3.98616664,   0.48723704],
            [ -3.60224613,  -3.98616664,  13.04508284,  -1.59255406],
@@ -42,7 +42,7 @@ if __name__ == '__main__':
 			# No axes for clarity in the plot
 			ax.xaxis.set_visible(False)
 			ax.yaxis.set_visible(False)
-			#skip the diagonal
+			# Skip the diagonal
 			if i == j: continue
 			
 			ax.scatter(Y[i], Y[j])

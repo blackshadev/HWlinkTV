@@ -22,7 +22,7 @@ def showCdf(rv):
 
 """
 Plots the pdf and picks n random values, plots these values
-These values are automaticly noralised by using scipy.stats.norm.rvs func
+These values are automatically normalised by using scipy.stats.norm.rvs func
 """
 def randNorm(rv, n):
     R = rv.rvs(n)
