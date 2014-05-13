@@ -2,20 +2,27 @@ from pylab import loadtxt, arange, loadtxt, permutation, transpose,\
 zeros, sum, plot, subplot, array, scatter, logical_and, figure,\
 savefig
 import sys
+import numpy as np
+from itertools import groupby
 
 sys.path.append("./python")
 
 from pylab import tile, sum, argmin
 class NNb:
-    def __init__(self, X, c):
+    def __init__(self, X, c, N=3):
         self.n, self.N = X.shape
         self.X = X
         self.c = c
+        self._N = N
     def classify(self, x):
         d = self.X - tile(x.reshape(self.n,1), self.N);
         dsq = sum(d*d,0)
-        minindex = argmin(dsq)
-        return self.c[minindex]
+        # Get N nearest neighbors
+        minindex = np.argsort(dsq)[0:self._N]
+        # Group sum by value
+        groupCount = [len(list(group)) for key, group in groupby(minindex)]
+        # Get the minindex of the most occured index
+        return self.c[minindex[np.argmax(groupCount)]]
 
 def cnvt(s):
     tab = {'Iris-setosa':1.0, 'Iris-versicolor':2.0, 'Iris-virginica':3.0}
@@ -44,9 +51,10 @@ for i in arange(len(T)):
 CM = zeros((3,3))
 for i in range(3):
     for j in range(3):
-        CM[i,j] = sum( logical_and(XC[T,4]==(i+1),c==(j+1)) )
+        CM[i,j] = sum( logical_and(XC[T,4] == (i + 1), c == (j + 1)) )
 
 print(CM)
+
 # Plot Test Set
 figure(1)
 color = array( [[1,0,0],[0,1,0],[0,0,1]] )
