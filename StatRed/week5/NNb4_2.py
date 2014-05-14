@@ -3,27 +3,25 @@ zeros, sum, plot, subplot, array, scatter, logical_and, figure,\
 savefig
 import sys
 import numpy as np
-from itertools import groupby
+from collections import Counter
 
 sys.path.append("./python")
 
 from pylab import tile, sum, argmin
 class NNb:
-    def __init__(self, X, c, N=31):
+    def __init__(self, X, c, k=9):
         self.n, self.N = X.shape
         self.X = X
         self.c = c
-        self._N = N
+        self.k = k
     def classify(self, x):
         d = self.X - tile(x.reshape(self.n,1), self.N);
         dsq = sum(d*d,0)
         # Get N nearest neighbors
-        minindex = np.argsort(dsq)[0:self._N]
+        minindex = np.argsort(dsq)[0:self.k]
         # Group sum by value
-        groupCount = [len(list(group)) for key, group in groupby(minindex)]
-        # Get the minindex of the most occured index
-        return self.c[minindex[np.argmax(groupCount)]]
-
+        return Counter(self.c[minindex]).most_common()[0][0]
+        
 def cnvt(s):
     tab = {'Iris-setosa':1.0, 'Iris-versicolor':2.0, 'Iris-virginica':3.0}
     if tab.has_key(s):
@@ -69,4 +67,4 @@ for i in range(4):
         scatter( XC[T,i], XC[T,j], s=30, marker='+',
         edgecolor=color[c.astype(int)-1])
 
-savefig('nnbtest.pdf')
+savefig('nnbtest.png')
