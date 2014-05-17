@@ -13,7 +13,7 @@ import matplotlib.pylab as pl
 from collections import Counter
 
 class MAP:
-    def __init__(self, X, c):
+    def __init__(self, X, c, apriori):
         # Test set
         self.X = X
         self.c = list(c)
@@ -23,6 +23,8 @@ class MAP:
         
         self.mean = []
         self.cov = []
+
+        self.apriori = apriori
         
         self.learn()
     """
@@ -53,7 +55,7 @@ class MAP:
                 np.dot( np.linalg.inv(si), xmz)))
             # |Sigma| ^(-1/2) *  (2 * pi)^(n/2) 
             lower = np.linalg.det(si) ** (-0.5) * (2 * math.pi) ** (si.shape[0] / 2)
-            results.append(upper / lower)
+            results.append(upper / lower * self.apriori[i])
         return self.classes[np.argmax(results)]
 
 # from pdf handout_6_Classification
@@ -74,7 +76,9 @@ T = ind[90:] # test set indices
 
 # Learn the learn set in the minimum error classifier
 X = np.transpose(XC[L,0:4])
-minErr = MAP(X, XC[L,-1])
+
+# Create Minimum error classifier with data, learnset and uniform apriori chance
+minErr = MAP(X, XC[L,-1], [1,1,1])
 
 # from pdf handout_6_Classification
 c = np.zeros(len(T))
