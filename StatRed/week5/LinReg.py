@@ -17,22 +17,14 @@ X = vstack((ones(x.shape),x)).T
 
 
 def J(th):
-	return np.sum([ (y[i] - fn(x[i], th)) ** 2 for i in range(x.size) ])
+	return np.sum((y - fn(x, th))**2)
 
 def Jac(th):
-	def dth_1(x, y):
-		return 2 * np.sin(x * th[1]) * (y - th[0] * np.sin(x * th[1]))
-	def dth_2(x, y):
-		#return 2 * x * th[0] * np.cos(x * th[1]) * (y - th[0] * np.sin(x * th[1]))
-		return 2 * (y - th[0] * np.sin(x * th[1])) * x * th[0] * np.cos(x * th[1])
-	dth1 = np.sum([dth_1(x[i], y[i]) for i in range(x.size) ])
-	dth2 = np.sum([dth_2(x[i], y[i]) for i in range(x.size) ])
+	dth1 = np.sum(2 * np.sin(x * th[1]) * (th[0] * np.sin(x * th[1]) - y))
+	dth2 = np.sum(2 * x * th[0] * np.cos(x * th[1]) * (th[0] * np.sin(x * th[1]) - y))
 	return np.array([dth1, dth2])
 
-print J([0,0])
-exit()
-
-res = minimize(J, (0,0), jac=Jac, method='CG')
+res = minimize(J, (3, .65), jac=Jac, method='CG')
 print res
 
 eth1, eth2 = res.x
