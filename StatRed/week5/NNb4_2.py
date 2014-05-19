@@ -1,3 +1,12 @@
+""" StatRed: Week 5 Opdr 4.2 
+" 
+" Authors: Tessa Klunder & Vincent Hagen
+" Date   : 19-5-2014
+"
+" Implements the k-Nearest Neighbor Classifier
+"
+"""
+
 from pylab import loadtxt, arange, loadtxt, permutation, transpose,\
 zeros, sum, plot, subplot, array, scatter, logical_and, figure,\
 savefig

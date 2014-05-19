@@ -1,3 +1,12 @@
+""" StatRed: Week 5 Opdr 4.3 
+" 
+" Authors: Tessa Klunder & Vincent Hagen
+" Date   : 19-5-2014
+"
+" Plots the Minimum Error graph.
+"
+"""
+
 import numpy as np
 import scipy.stats as stats
 import matplotlib.pylab as pl
