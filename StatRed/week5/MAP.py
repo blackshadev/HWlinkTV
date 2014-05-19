@@ -1,7 +1,7 @@
 """ StatRed: Week 5 Opdr 4.4 
 " 
 " Authors: Tessa Klunder & Vincent Hagen
-" Date   : 14-5-2014
+" Date   : 19-5-2014
 "
 " Implements the Minimum Error Classifier
 "
@@ -28,7 +28,7 @@ class MAP:
         
         self.learn()
     """
-    Learns the dataset by calculating the mean and covarience matrix of the 
+    Learns the dataset by calculating the mean and covariance matrix of the 
      data grouped by class
     """
     def learn(self):
