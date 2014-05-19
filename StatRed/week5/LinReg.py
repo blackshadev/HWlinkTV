@@ -1,4 +1,4 @@
-from pylab import linspace, randn, ones, vstack, plot, savefig, dot, norm
+from pylab import linspace, randn, ones, vstack, plot, savefig, dot, norm, figure, show, clf, contour, colorbar
 from scipy.optimize import minimize
 import numpy as np
 
@@ -28,6 +28,15 @@ res = minimize(J, (3, .65), jac=Jac, method='CG')
 print res
 
 eth1, eth2 = res.x
+
+t1a = linspace(0,4,100)
+t2a = linspace(0,4,100)
+Jim = np.array( [J((t1,t2)) for t1 in t1a for t2 in t2a] ).reshape(100,100)
+figure(1); clf(); contour(t2a, t1a, Jim); colorbar()
+savefig("Jplot.png")
+
+clf()
+figure(1)
 plot(x, y, 'xb')
 plot(x, fn(x, [eth1, eth2]), 'b')
 plot(x, fn(x, th), 'g')
